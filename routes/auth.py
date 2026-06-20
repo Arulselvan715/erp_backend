@@ -15,7 +15,7 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     """Show the login form (GET) or authenticate the user (POST)."""
-    if current_user.is_authenticated:
+    if request.method == "GET" and current_user.is_authenticated:
         accept_header = request.headers.get("Accept", "")
         if request.is_json or "application/json" in accept_header:
             return jsonify({
@@ -88,12 +88,19 @@ def login():
 # ------------------------------------------------------------------
 # Logout
 # ------------------------------------------------------------------
-@auth_bp.route("/logout")
-@login_required
+@auth_bp.route("/logout", methods=["GET", "POST"])
 def logout():
-    """Log the current user out and redirect to the login page."""
-    log_audit(current_user.id, "LOGOUT", "User", current_user.id, None, None, f"User '{current_user.username}' logged out")
-    logout_user()
+    """Log the current user out and redirect to the login page or return JSON."""
+    if current_user.is_authenticated:
+        user_id = current_user.id
+        username = current_user.username
+        log_audit(user_id, "LOGOUT", "User", user_id, None, None, f"User '{username}' logged out")
+        logout_user()
+    
+    accept_header = request.headers.get("Accept", "")
+    if request.is_json or "application/json" in accept_header:
+        return jsonify({"message": "Logged out successfully."})
+        
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
 
