@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, redirect, url_for
-from flask_login import LoginManager
+from flask_login import LoginManager, login_required
 
 from config import Config, config_by_name
 from models import db
@@ -69,6 +69,19 @@ def create_app(config_name: str | None = None) -> Flask:
     @app.route("/")
     def index():
         return redirect(url_for("auth.login"))
+
+    @app.route("/users/", methods=["GET"])
+    @app.route("/users", methods=["GET"])
+    @login_required
+    def list_users():
+        from models.user import User
+        from routes.utils import serialize
+        from flask import jsonify
+        users = User.query.order_by(User.username).all()
+        return jsonify({
+            "data": [serialize(u) for u in users],
+            "total": len(users)
+        })
 
     # ── Create tables & seed data ─────────────────────────────────────
     with app.app_context():

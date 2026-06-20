@@ -1,6 +1,6 @@
 """Customer CRUD routes."""
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import login_required, current_user
 
 from models import db, Customer
@@ -11,12 +11,14 @@ customers_bp = Blueprint("customers", __name__, url_prefix="/customers")
 
 
 # ------------------------------------------------------------------
-# List
+# List & Create REST Endpoint
 # ------------------------------------------------------------------
-@customers_bp.route("/")
+@customers_bp.route("/", methods=["GET", "POST"])
 @login_required
 def list_customers():
-    """List all customers with optional search."""
+    if request.method == "POST":
+        return create()
+
     q = request.args.get("q", "").strip()
     query = Customer.query
     if q:
@@ -34,14 +36,17 @@ def list_customers():
 @login_required
 @role_required("admin", "manager", "sales")
 def create():
-    """Show create form (GET) or persist a new customer (POST)."""
+    data = request.get_json() if request.is_json else request.form
+
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        email = request.form.get("email", "").strip()
-        phone = request.form.get("phone", "").strip()
-        address = request.form.get("address", "").strip()
+        name = data.get("name", "").strip()
+        email = data.get("email", "").strip()
+        phone = data.get("phone", "").strip()
+        address = data.get("address", "").strip()
 
         if not name:
+            if request.is_json:
+                return jsonify({"error": "Customer name is required."}), 400
             flash("Customer name is required.", "warning")
             return render_template("customers/form.html", customer=None)
 
@@ -55,6 +60,13 @@ def create():
             {"name": name, "email": email},
             f"Created customer '{name}'",
         )
+        
+        if request.is_json:
+            return jsonify({
+                "message": f"Customer '{name}' created successfully.",
+                "id": customer.id
+            }), 201
+
         flash(f"Customer '{name}' created successfully.", "success")
         return redirect(url_for("customers.list_customers"))
 
@@ -62,9 +74,22 @@ def create():
 
 
 # ------------------------------------------------------------------
+# View / Edit / Delete REST Endpoint
+# ------------------------------------------------------------------
+@customers_bp.route("/<int:customer_id>", methods=["GET", "PUT", "DELETE"])
+@login_required
+def view_edit_delete_customer(customer_id):
+    if request.method == "PUT":
+        return edit(customer_id)
+    elif request.method == "DELETE":
+        return delete(customer_id)
+    return view(customer_id)
+
+
+# ------------------------------------------------------------------
 # Detail / View
 # ------------------------------------------------------------------
-@customers_bp.route("/<int:customer_id>")
+@customers_bp.route("/<int:customer_id>/view")
 @login_required
 def view(customer_id):
     customer = Customer.query.get_or_404(customer_id)
@@ -79,14 +104,15 @@ def view(customer_id):
 @role_required("admin", "manager", "sales")
 def edit(customer_id):
     customer = Customer.query.get_or_404(customer_id)
+    data = request.get_json() if request.is_json else request.form
 
-    if request.method == "POST":
+    if request.method in ["POST", "PUT"]:
         old = {"name": customer.name, "email": customer.email, "phone": customer.phone, "address": customer.address}
 
-        customer.name = request.form.get("name", "").strip() or customer.name
-        customer.email = request.form.get("email", "").strip()
-        customer.phone = request.form.get("phone", "").strip()
-        customer.address = request.form.get("address", "").strip()
+        customer.name = data.get("name", "").strip() or customer.name
+        customer.email = data.get("email", "").strip()
+        customer.phone = data.get("phone", "").strip()
+        customer.address = data.get("address", "").strip()
         db.session.commit()
 
         new = {"name": customer.name, "email": customer.email, "phone": customer.phone, "address": customer.address}
@@ -95,6 +121,10 @@ def edit(customer_id):
             old, new,
             f"Updated customer '{customer.name}'",
         )
+        
+        if request.is_json:
+            return jsonify({"message": f"Customer '{customer.name}' updated."}), 200
+
         flash(f"Customer '{customer.name}' updated.", "success")
         return redirect(url_for("customers.view", customer_id=customer.id))
 
@@ -104,7 +134,7 @@ def edit(customer_id):
 # ------------------------------------------------------------------
 # Delete
 # ------------------------------------------------------------------
-@customers_bp.route("/<int:customer_id>/delete", methods=["POST"])
+@customers_bp.route("/<int:customer_id>/delete", methods=["POST", "DELETE"])
 @login_required
 @role_required("admin")
 def delete(customer_id):
@@ -117,5 +147,9 @@ def delete(customer_id):
     )
     db.session.delete(customer)
     db.session.commit()
+    
+    if request.is_json:
+        return jsonify({"message": f"Customer '{name}' deleted."}), 200
+
     flash(f"Customer '{name}' deleted.", "success")
     return redirect(url_for("customers.list_customers"))

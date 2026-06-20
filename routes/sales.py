@@ -11,7 +11,7 @@ Business logic:
 
 from datetime import datetime, timezone
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import login_required, current_user
 
 from models import (
@@ -43,7 +43,7 @@ def _auto_procure(product, shortage_qty, so):
     Called automatically when a sales order is confirmed and there is
     not enough free-to-use stock.
     """
-    if product.procurement_type == "manufacture":
+    if product.procurement_type in ("manufacture", "manufacturing"):
         bom = BillOfMaterials.query.filter_by(product_id=product.id).first()
         if bom is None:
             flash(
@@ -107,11 +107,14 @@ def _auto_procure(product, shortage_qty, so):
 
 
 # ------------------------------------------------------------------
-# List
+# List & Create REST Endpoint
 # ------------------------------------------------------------------
-@sales_bp.route("/")
+@sales_bp.route("/", methods=["GET", "POST"])
 @login_required
 def list_orders():
+    if request.method == "POST":
+        return create()
+
     status_filter = request.args.get("status", "").strip()
     query = SalesOrder.query
     if status_filter:
@@ -131,54 +134,109 @@ def create():
     products = Product.query.order_by(Product.name).all()
 
     if request.method == "POST":
-        customer_id = request.form.get("customer_id", type=int)
-        if not customer_id:
-            flash("Please select a customer.", "warning")
-            return render_template("sales/form.html", customers=customers, products=products, order=None)
-
-        product_ids = request.form.getlist("product_id")
-        quantities = request.form.getlist("quantity")
-        unit_prices = request.form.getlist("unit_price")
-
-        if not product_ids:
-            flash("Add at least one product line.", "warning")
-            return render_template("sales/form.html", customers=customers, products=products, order=None)
-
-        so = SalesOrder(customer_id=customer_id, status="draft", total_amount=0)
-        db.session.add(so)
-        db.session.flush()
-
-        total = 0.0
-        for pid, qty, price in zip(product_ids, quantities, unit_prices):
-            pid = int(pid)
-            qty = float(qty) if qty else 0
-            product = Product.query.get(pid)
-            if product is None or qty <= 0:
-                continue
-            price = float(price) if price else product.sales_price or 0
-            line_total = qty * price
-            line = SalesOrderLine(
-                order_id=so.id,
-                product_id=pid,
-                quantity=qty,
-                delivered_qty=0,
-                unit_price=price,
-                line_total=line_total,
+        data = request.get_json() if request.is_json else None
+        
+        if data:
+            customer_id = data.get("customer_id")
+            if customer_id:
+                customer_id = int(customer_id)
+            items = data.get("items", [])
+            
+            if not customer_id:
+                return jsonify({"error": "Please select a customer."}), 400
+            if not items:
+                return jsonify({"error": "Add at least one product line."}), 400
+                
+            so = SalesOrder(customer_id=customer_id, status="draft", total_amount=0)
+            db.session.add(so)
+            db.session.flush()
+            
+            total = 0.0
+            for item in items:
+                pid = int(item.get("product_id") or 0)
+                qty = float(item.get("quantity") or 0)
+                price = float(item.get("price") or 0)
+                
+                product = Product.query.get(pid)
+                if product is None or qty <= 0:
+                    continue
+                if not price:
+                    price = product.sales_price or 0
+                line_total = qty * price
+                line = SalesOrderLine(
+                    order_id=so.id,
+                    product_id=pid,
+                    quantity=qty,
+                    delivered_qty=0,
+                    unit_price=price,
+                    line_total=line_total,
+                )
+                db.session.add(line)
+                total += line_total
+                
+            so.total_amount = total
+            db.session.commit()
+            
+            log_audit(
+                current_user.id, "CREATE", "SalesOrder", so.id,
+                None,
+                {"customer_id": customer_id, "total": total},
+                f"Created Sales Order #{so.id}",
             )
-            db.session.add(line)
-            total += line_total
+            return jsonify({
+                "message": f"Sales Order #{so.id} created.",
+                "id": so.id
+            }), 201
+            
+        else:
+            customer_id = request.form.get("customer_id", type=int)
+            if not customer_id:
+                flash("Please select a customer.", "warning")
+                return render_template("sales/form.html", customers=customers, products=products, order=None)
 
-        so.total_amount = total
-        db.session.commit()
+            product_ids = request.form.getlist("product_id")
+            quantities = request.form.getlist("quantity")
+            unit_prices = request.form.getlist("unit_price")
 
-        log_audit(
-            current_user.id, "CREATE", "SalesOrder", so.id,
-            None,
-            {"customer_id": customer_id, "total": total},
-            f"Created Sales Order #{so.id}",
-        )
-        flash(f"Sales Order #{so.id} created.", "success")
-        return redirect(url_for("sales.view", order_id=so.id))
+            if not product_ids:
+                flash("Add at least one product line.", "warning")
+                return render_template("sales/form.html", customers=customers, products=products, order=None)
+
+            so = SalesOrder(customer_id=customer_id, status="draft", total_amount=0)
+            db.session.add(so)
+            db.session.flush()
+
+            total = 0.0
+            for pid, qty, price in zip(product_ids, quantities, unit_prices):
+                pid = int(pid)
+                qty = float(qty) if qty else 0
+                product = Product.query.get(pid)
+                if product is None or qty <= 0:
+                    continue
+                price = float(price) if price else product.sales_price or 0
+                line_total = qty * price
+                line = SalesOrderLine(
+                    order_id=so.id,
+                    product_id=pid,
+                    quantity=qty,
+                    delivered_qty=0,
+                    unit_price=price,
+                    line_total=line_total,
+                )
+                db.session.add(line)
+                total += line_total
+
+            so.total_amount = total
+            db.session.commit()
+
+            log_audit(
+                current_user.id, "CREATE", "SalesOrder", so.id,
+                None,
+                {"customer_id": customer_id, "total": total},
+                f"Created Sales Order #{so.id}",
+            )
+            flash(f"Sales Order #{so.id} created.", "success")
+            return redirect(url_for("sales.view", order_id=so.id))
 
     return render_template("sales/form.html", customers=customers, products=products, order=None)
 
@@ -202,10 +260,12 @@ def view(order_id):
 def confirm(order_id):
     so = SalesOrder.query.get_or_404(order_id)
     if so.status != "draft":
+        if request.is_json:
+            return jsonify({"error": "Only draft orders can be confirmed."}), 400
         flash("Only draft orders can be confirmed.", "warning")
         return redirect(url_for("sales.view", order_id=so.id))
 
-    for line in so.lines:
+    for line in so.lines.all():
         product = Product.query.get(line.product_id)
         if product is None:
             continue
@@ -239,6 +299,9 @@ def confirm(order_id):
         {"status": "draft"}, {"status": "confirmed"},
         f"Confirmed Sales Order #{so.id}",
     )
+    if request.is_json:
+        return jsonify({"message": f"Sales Order #{so.id} confirmed."}), 200
+
     flash(f"Sales Order #{so.id} confirmed.", "success")
     return redirect(url_for("sales.view", order_id=so.id))
 
@@ -251,51 +314,110 @@ def confirm(order_id):
 @role_required("admin", "manager", "sales", "warehouse")
 def deliver(order_id):
     so = SalesOrder.query.get_or_404(order_id)
-    if so.status != "confirmed":
+    if so.status not in ("confirmed", "partially_delivered"):
+        if request.is_json:
+            return jsonify({"error": "Only confirmed or partially delivered orders can be delivered."}), 400
         flash("Only confirmed orders can be delivered.", "warning")
         return redirect(url_for("sales.view", order_id=so.id))
 
-    all_delivered = True
-    for line in so.lines:
-        product = Product.query.get(line.product_id)
-        if product is None:
-            continue
+    if request.is_json:
+        deliveries = request.get_json() or []
+        # Validate first
+        for item in deliveries:
+            item_id = int(item.get("item_id") or 0)
+            qty = float(item.get("quantity") or 0)
+            if qty <= 0:
+                continue
+            line = SalesOrderLine.query.get(item_id)
+            if not line or line.order_id != so.id:
+                return jsonify({"error": f"Invalid line item ID {item_id}"}), 400
+            
+            product = Product.query.get(line.product_id)
+            if not product:
+                continue
+            
+            if product.on_hand_qty < qty:
+                return jsonify({"error": f"Insufficient stock for '{product.name}': need {qty}, have {product.on_hand_qty}."}), 400
 
-        to_deliver = line.quantity - line.delivered_qty
-        if to_deliver <= 0:
-            continue
-
-        # Check if enough on-hand to actually ship
-        if product.on_hand_qty < to_deliver:
-            flash(
-                f"Insufficient stock for '{product.name}': need {to_deliver}, have {product.on_hand_qty}.",
-                "warning",
+        # Process deliveries
+        any_delivered = False
+        for item in deliveries:
+            item_id = int(item.get("item_id") or 0)
+            qty = float(item.get("quantity") or 0)
+            if qty <= 0:
+                continue
+            line = SalesOrderLine.query.get(item_id)
+            product = Product.query.get(line.product_id)
+            
+            product.on_hand_qty -= qty
+            product.reserved_qty = max(product.reserved_qty - qty, 0)
+            line.delivered_qty = float(line.delivered_qty or 0) + qty
+            any_delivered = True
+            
+            log_stock_movement(
+                product.id, -qty, "SalesOrder", so.id,
+                f"Delivered {qty} units for SO#{so.id}",
             )
-            all_delivered = False
-            continue
-
-        # Deduct inventory
-        product.on_hand_qty -= to_deliver
-        product.reserved_qty = max(product.reserved_qty - to_deliver, 0)
-        line.delivered_qty = line.quantity
-
-        log_stock_movement(
-            product.id, -to_deliver, "SalesOrder", so.id,
-            f"Delivered {to_deliver} units for SO#{so.id}",
+            
+        # Update status
+        all_delivered = all(line.delivered_qty >= line.quantity for line in so.lines.all())
+        if all_delivered:
+            so.status = "delivered"
+        elif any_delivered:
+            so.status = "partially_delivered"
+            
+        so.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        
+        log_audit(
+            current_user.id, "DELIVER", "SalesOrder", so.id,
+            {"status": "confirmed"}, {"status": so.status},
+            f"Delivered Sales Order #{so.id}",
         )
+        return jsonify({"message": f"Sales Order #{so.id} delivery processed."}), 200
 
-    if all_delivered:
-        so.status = "delivered"
-    so.updated_at = datetime.now(timezone.utc)
-    db.session.commit()
+    else:
+        all_delivered = True
+        for line in so.lines.all():
+            product = Product.query.get(line.product_id)
+            if product is None:
+                continue
 
-    log_audit(
-        current_user.id, "DELIVER", "SalesOrder", so.id,
-        {"status": "confirmed"}, {"status": so.status},
-        f"Delivered Sales Order #{so.id}",
-    )
-    flash(f"Sales Order #{so.id} delivery processed.", "success")
-    return redirect(url_for("sales.view", order_id=so.id))
+            to_deliver = line.quantity - line.delivered_qty
+            if to_deliver <= 0:
+                continue
+
+            # Check if enough on-hand to actually ship
+            if product.on_hand_qty < to_deliver:
+                flash(
+                    f"Insufficient stock for '{product.name}': need {to_deliver}, have {product.on_hand_qty}.",
+                    "warning",
+                )
+                all_delivered = False
+                continue
+
+            # Deduct inventory
+            product.on_hand_qty -= to_deliver
+            product.reserved_qty = max(product.reserved_qty - to_deliver, 0)
+            line.delivered_qty = line.quantity
+
+            log_stock_movement(
+                product.id, -to_deliver, "SalesOrder", so.id,
+                f"Delivered {to_deliver} units for SO#{so.id}",
+            )
+
+        if all_delivered:
+            so.status = "delivered"
+        so.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        log_audit(
+            current_user.id, "DELIVER", "SalesOrder", so.id,
+            {"status": "confirmed"}, {"status": so.status},
+            f"Delivered Sales Order #{so.id}",
+        )
+        flash(f"Sales Order #{so.id} delivery processed.", "success")
+        return redirect(url_for("sales.view", order_id=so.id))
 
 
 # ------------------------------------------------------------------
@@ -306,15 +428,17 @@ def deliver(order_id):
 @role_required("admin", "manager", "sales")
 def cancel(order_id):
     so = SalesOrder.query.get_or_404(order_id)
-    if so.status not in ("draft", "confirmed"):
-        flash("Cannot cancel a delivered order.", "warning")
+    if so.status not in ("draft", "confirmed", "partially_delivered"):
+        if request.is_json:
+            return jsonify({"error": "Cannot cancel this order."}), 400
+        flash("Cannot cancel this order.", "warning")
         return redirect(url_for("sales.view", order_id=so.id))
 
     old_status = so.status
 
-    if so.status == "confirmed":
+    if so.status in ("confirmed", "partially_delivered"):
         # Release reserved stock
-        for line in so.lines:
+        for line in so.lines.all():
             product = Product.query.get(line.product_id)
             if product is None:
                 continue
@@ -335,5 +459,8 @@ def cancel(order_id):
         {"status": old_status}, {"status": "cancelled"},
         f"Cancelled Sales Order #{so.id}",
     )
+    if request.is_json:
+        return jsonify({"message": f"Sales Order #{so.id} cancelled."}), 200
+
     flash(f"Sales Order #{so.id} cancelled.", "success")
     return redirect(url_for("sales.view", order_id=so.id))

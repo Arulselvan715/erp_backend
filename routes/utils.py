@@ -101,6 +101,15 @@ def serialize(data):
             elif isinstance(val, Decimal):
                 val = float(val)
             result[column.name] = val
+            
+        # Mapping compatibility for frontend
+        if data.__class__.__name__ == "Product":
+            if result.get("procurement_type") == "manufacture":
+                result["procurement_type"] = "manufacturing"
+            elif result.get("procurement_type") == "buy":
+                result["procurement_type"] = "purchase"
+            result["free_qty"] = float(data.free_to_use_qty)
+
         # Expose custom hybrid properties or class properties if they exist
         for key in dir(data.__class__):
             prop = getattr(data.__class__, key)

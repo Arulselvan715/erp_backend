@@ -32,5 +32,13 @@ class Vendor(db.Model):
         "PurchaseOrder", back_populates="vendor", lazy="dynamic"
     )
 
+    @property
+    def address(self):
+        return self.address_line1
+
+    @address.setter
+    def address(self, value):
+        self.address_line1 = value
+
     def __repr__(self) -> str:
         return f"<Vendor {self.id} {self.name!r}>"

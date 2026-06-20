@@ -61,10 +61,19 @@ class PurchaseOrder(db.Model):
         passive_deletes=True,
     )
 
+    @property
+    def vendor_name(self) -> str:
+        return self.vendor.name if self.vendor else ""
+
+    @property
+    def items(self) -> list:
+        from routes.utils import serialize
+        return [serialize(line) for line in self.lines.all()]
+
     # ------------------------------------------------------------------
     def recalculate_totals(self) -> None:
         """Recompute subtotal and total_amount from line items."""
-        self.subtotal = sum(line.line_total or 0 for line in self.lines)
+        self.subtotal = sum(line.line_total or 0 for line in self.lines.all())
         self.total_amount = (self.subtotal or 0) + (self.tax_amount or 0)
 
     def __repr__(self) -> str:
@@ -98,6 +107,14 @@ class PurchaseOrderLine(db.Model):
     # --- Relationships ---
     order = db.relationship("PurchaseOrder", back_populates="lines")
     product = db.relationship("Product", back_populates="purchase_order_lines")
+
+    @property
+    def product_name(self) -> str:
+        return self.product.name if self.product else ""
+
+    @property
+    def price(self) -> float:
+        return float(self.unit_price or 0.0)
 
     # ------------------------------------------------------------------
     def compute_line_total(self) -> None:

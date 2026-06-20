@@ -1,6 +1,6 @@
 """Product CRUD routes + BoM configuration + procurement strategy setup."""
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import login_required, current_user
 
 from models import db, Product, Vendor, BillOfMaterials, BomLine, BomOperation
@@ -13,9 +13,15 @@ products_bp = Blueprint("products", __name__, url_prefix="/products")
 # ------------------------------------------------------------------
 # List
 # ------------------------------------------------------------------
-@products_bp.route("/")
+# ------------------------------------------------------------------
+# List & Create REST Endpoint
+# ------------------------------------------------------------------
+@products_bp.route("/", methods=["GET", "POST"])
 @login_required
 def list_products():
+    if request.method == "POST":
+        return create()
+
     q = request.args.get("q", "").strip()
     query = Product.query
     if q:
@@ -34,22 +40,29 @@ def list_products():
 @role_required("admin", "manager")
 def create():
     vendors = Vendor.query.order_by(Vendor.name).all()
+    data = request.get_json() if request.is_json else request.form
 
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        sku = request.form.get("sku", "").strip()
-        sales_price = request.form.get("sales_price", type=float) or 0.0
-        cost_price = request.form.get("cost_price", type=float) or 0.0
-        on_hand_qty = request.form.get("on_hand_qty", type=float) or 0.0
-        procure_on_demand = bool(request.form.get("procure_on_demand"))
-        procurement_type = request.form.get("procurement_type", "buy")  # buy | manufacture
-        vendor_id = request.form.get("vendor_id", type=int)
+        name = data.get("name", "").strip()
+        sku = data.get("sku", "").strip()
+        sales_price = float(data.get("sales_price", 0.0) or 0.0)
+        cost_price = float(data.get("cost_price", 0.0) or 0.0)
+        on_hand_qty = float(data.get("on_hand_qty", 0.0) or 0.0)
+        procure_on_demand = bool(data.get("procure_on_demand"))
+        procurement_type = data.get("procurement_type", "purchase")
+        vendor_id = data.get("vendor_id")
+        if vendor_id:
+            vendor_id = int(vendor_id)
 
         if not name or not sku:
+            if request.is_json:
+                return jsonify({"error": "Product name and SKU are required."}), 400
             flash("Product name and SKU are required.", "warning")
             return render_template("products/form.html", product=None, vendors=vendors)
 
         if Product.query.filter_by(sku=sku).first():
+            if request.is_json:
+                return jsonify({"error": f"SKU '{sku}' already exists."}), 400
             flash(f"SKU '{sku}' already exists.", "danger")
             return render_template("products/form.html", product=None, vendors=vendors)
 
@@ -73,6 +86,12 @@ def create():
             {"name": name, "sku": sku, "procurement_type": procurement_type},
             f"Created product '{name}' (SKU: {sku})",
         )
+        if request.is_json:
+            return jsonify({
+                "message": f"Product '{name}' created.",
+                "id": product.id
+            }), 201
+
         flash(f"Product '{name}' created.", "success")
         return redirect(url_for("products.view", product_id=product.id))
 
@@ -80,10 +99,22 @@ def create():
 
 
 # ------------------------------------------------------------------
+# View / Edit / Delete REST Endpoint
+# ------------------------------------------------------------------
+@products_bp.route("/<int:product_id>", methods=["GET", "PUT", "DELETE"])
+@login_required
+def view_edit_delete_product(product_id):
+    if request.method == "PUT":
+        return edit(product_id)
+    elif request.method == "DELETE":
+        return delete(product_id)
+    return view(product_id)
+
+
+# ------------------------------------------------------------------
 # View / Detail
 # ------------------------------------------------------------------
-@products_bp.route("/<int:product_id>")
-@login_required
+@products_bp.route("/<int:product_id>/view")
 def view(product_id):
     product = Product.query.get_or_404(product_id)
     bom = BillOfMaterials.query.filter_by(product_id=product.id).first()
@@ -99,8 +130,9 @@ def view(product_id):
 def edit(product_id):
     product = Product.query.get_or_404(product_id)
     vendors = Vendor.query.order_by(Vendor.name).all()
+    data = request.get_json() if request.is_json else request.form
 
-    if request.method == "POST":
+    if request.method in ["POST", "PUT"]:
         old = {
             "name": product.name, "sku": product.sku,
             "sales_price": float(product.sales_price),
@@ -110,14 +142,16 @@ def edit(product_id):
             "vendor_id": product.vendor_id,
         }
 
-        product.name = request.form.get("name", "").strip() or product.name
-        product.sku = request.form.get("sku", "").strip() or product.sku
-        product.sales_price = request.form.get("sales_price", type=float) or product.sales_price
-        product.cost_price = request.form.get("cost_price", type=float) or product.cost_price
-        product.procure_on_demand = bool(request.form.get("procure_on_demand"))
-        product.procurement_type = request.form.get("procurement_type", product.procurement_type)
-        vendor_id = request.form.get("vendor_id", type=int)
-        product.vendor_id = vendor_id if vendor_id else None
+        product.name = data.get("name", "").strip() or product.name
+        product.sku = data.get("sku", "").strip() or product.sku
+        if "sales_price" in data:
+            product.sales_price = float(data.get("sales_price", 0.0) or 0.0)
+        if "cost_price" in data:
+            product.cost_price = float(data.get("cost_price", 0.0) or 0.0)
+        product.procure_on_demand = bool(data.get("procure_on_demand"))
+        product.procurement_type = data.get("procurement_type", product.procurement_type)
+        vendor_id = data.get("vendor_id")
+        product.vendor_id = int(vendor_id) if vendor_id else None
         db.session.commit()
 
         new = {
@@ -133,6 +167,9 @@ def edit(product_id):
             old, new,
             f"Updated product '{product.name}'",
         )
+        if request.is_json:
+            return jsonify({"message": f"Product '{product.name}' updated."}), 200
+
         flash(f"Product '{product.name}' updated.", "success")
         return redirect(url_for("products.view", product_id=product.id))
 
@@ -142,7 +179,7 @@ def edit(product_id):
 # ------------------------------------------------------------------
 # Delete
 # ------------------------------------------------------------------
-@products_bp.route("/<int:product_id>/delete", methods=["POST"])
+@products_bp.route("/<int:product_id>/delete", methods=["POST", "DELETE"])
 @login_required
 @role_required("admin")
 def delete(product_id):
@@ -155,6 +192,9 @@ def delete(product_id):
     )
     db.session.delete(product)
     db.session.commit()
+    if request.is_json:
+        return jsonify({"message": f"Product '{name}' deleted."}), 200
+
     flash(f"Product '{name}' deleted.", "success")
     return redirect(url_for("products.list_products"))
 

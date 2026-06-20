@@ -12,7 +12,7 @@ Business logic:
 
 from datetime import datetime, timezone
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import login_required, current_user
 
 from models import (
@@ -54,11 +54,14 @@ def view_bom(bom_id):
 # ==================================================================
 
 # ------------------------------------------------------------------
-# List
+# List & Create REST Endpoint
 # ------------------------------------------------------------------
-@manufacturing_bp.route("/")
+@manufacturing_bp.route("/", methods=["GET", "POST"])
 @login_required
 def list_orders():
+    if request.method == "POST":
+        return create()
+
     status_filter = request.args.get("status", "").strip()
     query = ManufacturingOrder.query
     if status_filter:
@@ -84,50 +87,104 @@ def create():
     )
 
     if request.method == "POST":
-        product_id = request.form.get("product_id", type=int)
-        quantity = request.form.get("quantity", type=float) or 0
-
-        if not product_id or quantity <= 0:
-            flash("Select a product and enter a valid quantity.", "warning")
-            return render_template("manufacturing/form.html", products=products, order=None)
-
-        product = Product.query.get_or_404(product_id)
-        if product.bom_id is None:
-            flash(f"Product '{product.name}' has no Bill of Materials.", "danger")
-            return render_template("manufacturing/form.html", products=products, order=None)
-
-        bom = BillOfMaterials.query.get(product.bom_id)
-
-        mo = ManufacturingOrder(
-            product_id=product.id,
-            bom_id=bom.id,
-            quantity=quantity,
-            status="draft",
-        )
-        db.session.add(mo)
-        db.session.flush()
-
-        # Pre-create work orders from BoM operations
-        for op in bom.bom_operations:
-            wo = WorkOrder(
-                manufacturing_order_id=mo.id,
-                operation_name=op.operation_name,
-                sequence=op.sequence,
-                duration_mins=op.duration_mins,
-                status="pending",
+        data = request.get_json() if request.is_json else None
+        
+        if data:
+            product_id = data.get("product_id")
+            if product_id:
+                product_id = int(product_id)
+            quantity = float(data.get("quantity") or 0.0)
+            assigned_to = data.get("assigned_to")
+            
+            if not product_id or quantity <= 0:
+                return jsonify({"error": "Select a product and enter a valid quantity."}), 400
+                
+            product = Product.query.get_or_404(product_id)
+            if product.bom_id is None:
+                return jsonify({"error": f"Product '{product.name}' has no Bill of Materials."}), 400
+                
+            bom = BillOfMaterials.query.get(product.bom_id)
+            
+            mo = ManufacturingOrder(
+                product_id=product.id,
+                bom_id=bom.id,
+                quantity=quantity,
+                status="draft",
             )
-            db.session.add(wo)
+            if assigned_to:
+                mo.user_id = int(assigned_to)
+                
+            db.session.add(mo)
+            db.session.flush()
+            
+            for op in bom.operations.all():
+                wo = WorkOrder(
+                    manufacturing_order_id=mo.id,
+                    bom_operation_id=op.id,
+                    sequence=op.sequence,
+                    planned_duration_min=op.duration_minutes,
+                    status="pending",
+                )
+                db.session.add(wo)
+                
+            db.session.commit()
+            
+            log_audit(
+                current_user.id, "CREATE", "ManufacturingOrder", mo.id,
+                None,
+                {"product_id": product.id, "bom_id": bom.id, "quantity": quantity},
+                f"Created Manufacturing Order #{mo.id} for {quantity} × {product.name}",
+            )
+            return jsonify({
+                "message": f"Manufacturing Order #{mo.id} created.",
+                "id": mo.id
+            }), 201
 
-        db.session.commit()
+        else:
+            product_id = request.form.get("product_id", type=int)
+            quantity = request.form.get("quantity", type=float) or 0
 
-        log_audit(
-            current_user.id, "CREATE", "ManufacturingOrder", mo.id,
-            None,
-            {"product_id": product.id, "bom_id": bom.id, "quantity": quantity},
-            f"Created Manufacturing Order #{mo.id} for {quantity} × {product.name}",
-        )
-        flash(f"Manufacturing Order #{mo.id} created.", "success")
-        return redirect(url_for("manufacturing.view", order_id=mo.id))
+            if not product_id or quantity <= 0:
+                flash("Select a product and enter a valid quantity.", "warning")
+                return render_template("manufacturing/form.html", products=products, order=None)
+
+            product = Product.query.get_or_404(product_id)
+            if product.bom_id is None:
+                flash(f"Product '{product.name}' has no Bill of Materials.", "danger")
+                return render_template("manufacturing/form.html", products=products, order=None)
+
+            bom = BillOfMaterials.query.get(product.bom_id)
+
+            mo = ManufacturingOrder(
+                product_id=product.id,
+                bom_id=bom.id,
+                quantity=quantity,
+                status="draft",
+            )
+            db.session.add(mo)
+            db.session.flush()
+
+            # Pre-create work orders from BoM operations
+            for op in bom.operations.all():
+                wo = WorkOrder(
+                    manufacturing_order_id=mo.id,
+                    bom_operation_id=op.id,
+                    sequence=op.sequence,
+                    planned_duration_min=op.duration_minutes,
+                    status="pending",
+                )
+                db.session.add(wo)
+
+            db.session.commit()
+
+            log_audit(
+                current_user.id, "CREATE", "ManufacturingOrder", mo.id,
+                None,
+                {"product_id": product.id, "bom_id": bom.id, "quantity": quantity},
+                f"Created Manufacturing Order #{mo.id} for {quantity} × {product.name}",
+            )
+            flash(f"Manufacturing Order #{mo.id} created.", "success")
+            return redirect(url_for("manufacturing.view", order_id=mo.id))
 
     return render_template("manufacturing/form.html", products=products, order=None)
 
@@ -139,6 +196,9 @@ def create():
 @login_required
 def view(order_id):
     order = ManufacturingOrder.query.get_or_404(order_id)
+    if request.is_json:
+        from routes.utils import serialize
+        return jsonify(serialize(order))
     bom = BillOfMaterials.query.get(order.bom_id)
     return render_template("manufacturing/view.html", order=order, bom=bom)
 
@@ -152,18 +212,22 @@ def view(order_id):
 def confirm(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status != "draft":
+        if request.is_json:
+            return jsonify({"error": "Only draft manufacturing orders can be confirmed."}), 400
         flash("Only draft manufacturing orders can be confirmed.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
     bom = BillOfMaterials.query.get(mo.bom_id)
     if bom is None:
+        if request.is_json:
+            return jsonify({"error": "BoM not found. Cannot confirm."}), 400
         flash("BoM not found. Cannot confirm.", "danger")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
     # Check component availability and reserve
     shortage_products = []
-    for bom_line in bom.bom_lines:
-        component = Product.query.get(bom_line.component_product_id)
+    for bom_line in bom.lines.all():
+        component = Product.query.get(bom_line.component_id)
         if component is None:
             continue
 
@@ -183,10 +247,10 @@ def confirm(order_id):
 
     if shortage_products:
         db.session.rollback()
-        flash(
-            "Insufficient component stock: " + "; ".join(shortage_products),
-            "danger",
-        )
+        err_msg = "Insufficient component stock: " + "; ".join(shortage_products)
+        if request.is_json:
+            return jsonify({"error": err_msg}), 400
+        flash(err_msg, "danger")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
     mo.status = "confirmed"
@@ -198,6 +262,11 @@ def confirm(order_id):
         {"status": "draft"}, {"status": "confirmed"},
         f"Confirmed Manufacturing Order #{mo.id}",
     )
+    
+    if request.is_json:
+        from routes.utils import serialize
+        return jsonify(serialize(mo))
+
     flash(f"Manufacturing Order #{mo.id} confirmed — components reserved.", "success")
     return redirect(url_for("manufacturing.view", order_id=mo.id))
 
@@ -211,6 +280,8 @@ def confirm(order_id):
 def start(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status != "confirmed":
+        if request.is_json:
+            return jsonify({"error": "Only confirmed orders can be started."}), 400
         flash("Only confirmed orders can be started.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
@@ -234,6 +305,11 @@ def start(order_id):
         {"status": "confirmed"}, {"status": "in_progress"},
         f"Started Manufacturing Order #{mo.id}",
     )
+    
+    if request.is_json:
+        from routes.utils import serialize
+        return jsonify(serialize(mo))
+
     flash(f"Manufacturing Order #{mo.id} started.", "success")
     return redirect(url_for("manufacturing.view", order_id=mo.id))
 
@@ -281,6 +357,40 @@ def complete_work_order(order_id, wo_id):
 
 
 # ------------------------------------------------------------------
+# Update Work Order REST API Endpoint (PUT)
+# ------------------------------------------------------------------
+@manufacturing_bp.route("/work-orders/<int:wo_id>", methods=["PUT"])
+@login_required
+@role_required("admin", "manager", "production")
+def update_work_order(wo_id):
+    wo = WorkOrder.query.get_or_404(wo_id)
+    data = request.get_json() or {}
+    
+    status = data.get("status")
+    
+    if status:
+        wo.status = status
+        if status == "in_progress" and not wo.started_at:
+            wo.started_at = datetime.now(timezone.utc)
+        elif status == "done" and not wo.finished_at:
+            wo.finished_at = datetime.now(timezone.utc)
+            
+            # Auto-start the next work order in sequence
+            mo = wo.manufacturing_order
+            next_wo = (
+                WorkOrder.query.filter_by(manufacturing_order_id=mo.id, status="pending")
+                .order_by(WorkOrder.sequence)
+                .first()
+            )
+            if next_wo:
+                next_wo.status = "in_progress"
+                next_wo.started_at = datetime.now(timezone.utc)
+                
+    db.session.commit()
+    return jsonify({"message": f"Work order {wo_id} updated."}), 200
+
+
+# ------------------------------------------------------------------
 # Complete MO — produce finished goods, consume components
 # ------------------------------------------------------------------
 @manufacturing_bp.route("/<int:order_id>/complete", methods=["POST"])
@@ -289,6 +399,8 @@ def complete_work_order(order_id, wo_id):
 def complete(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status != "in_progress":
+        if request.is_json:
+            return jsonify({"error": "Only in-progress orders can be completed."}), 400
         flash("Only in-progress orders can be completed.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
@@ -298,14 +410,17 @@ def complete(order_id):
         WorkOrder.status != "done",
     ).count()
     if pending_wos > 0:
-        flash(f"Cannot complete: {pending_wos} work order(s) still pending.", "warning")
+        err_msg = f"Cannot complete: {pending_wos} work order(s) still pending."
+        if request.is_json:
+            return jsonify({"error": err_msg}), 400
+        flash(err_msg, "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
     bom = BillOfMaterials.query.get(mo.bom_id)
 
     # ── Consume components ───────────────────────────────────────
-    for bom_line in bom.bom_lines:
-        component = Product.query.get(bom_line.component_product_id)
+    for bom_line in bom.lines.all():
+        component = Product.query.get(bom_line.component_id)
         if component is None:
             continue
         consumed = bom_line.quantity * mo.quantity
@@ -335,6 +450,11 @@ def complete(order_id):
         {"status": "in_progress"}, {"status": "done"},
         f"Completed Manufacturing Order #{mo.id}",
     )
+    
+    if request.is_json:
+        from routes.utils import serialize
+        return jsonify(serialize(mo))
+
     flash(f"Manufacturing Order #{mo.id} completed — {mo.quantity} units produced.", "success")
     return redirect(url_for("manufacturing.view", order_id=mo.id))
 
@@ -348,6 +468,8 @@ def complete(order_id):
 def cancel(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status in ("done", "cancelled"):
+        if request.is_json:
+            return jsonify({"error": "Cannot cancel a completed or already-cancelled order."}), 400
         flash("Cannot cancel a completed or already-cancelled order.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
@@ -357,8 +479,8 @@ def cancel(order_id):
     if mo.status in ("confirmed", "in_progress"):
         bom = BillOfMaterials.query.get(mo.bom_id)
         if bom:
-            for bom_line in bom.bom_lines:
-                component = Product.query.get(bom_line.component_product_id)
+            for bom_line in bom.lines.all():
+                component = Product.query.get(bom_line.component_id)
                 if component is None:
                     continue
                 to_release = bom_line.quantity * mo.quantity
@@ -377,5 +499,10 @@ def cancel(order_id):
         {"status": old_status}, {"status": "cancelled"},
         f"Cancelled Manufacturing Order #{mo.id}",
     )
+    
+    if request.is_json:
+        from routes.utils import serialize
+        return jsonify(serialize(mo))
+
     flash(f"Manufacturing Order #{mo.id} cancelled.", "success")
     return redirect(url_for("manufacturing.view", order_id=mo.id))

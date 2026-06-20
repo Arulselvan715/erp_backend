@@ -193,6 +193,20 @@ class ManufacturingOrder(db.Model):
         order_by="WorkOrder.sequence",
     )
 
+    @property
+    def product_name(self) -> str:
+        return self.product.name if self.product else ""
+
+    @property
+    def bom_name(self) -> str:
+        return self.bom.name if self.bom else ""
+
+    @property
+    def items(self) -> list:
+        # Expose items as serialised work orders list for detail page compatibility
+        from routes.utils import serialize
+        return [serialize(wo) for wo in self.work_orders.all()]
+
     def __repr__(self) -> str:
         return (
             f"<ManufacturingOrder {self.id} #{self.order_number} "
@@ -241,6 +255,10 @@ class WorkOrder(db.Model):
     bom_operation = db.relationship(
         "BomOperation", back_populates="work_orders"
     )
+
+    @property
+    def operation_name(self) -> str:
+        return self.bom_operation.name if self.bom_operation else ""
 
     def __repr__(self) -> str:
         return (
