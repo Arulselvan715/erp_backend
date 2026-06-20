@@ -71,6 +71,15 @@ class Product(db.Model):
         self.unit_price = value
 
     @property
+    def procurement_strategy(self):
+        """Map procure_on_demand boolean to strategy string expected by frontend."""
+        return "make_to_order" if self.procure_on_demand else "make_to_stock"
+
+    @procurement_strategy.setter
+    def procurement_strategy(self, value):
+        self.procure_on_demand = (value == "make_to_order")
+
+    @property
     def free_to_use_qty(self):
         """Quantity available for new reservations (on_hand − reserved)."""
         return (self.on_hand_qty or 0) - (self.reserved_qty or 0)
@@ -85,3 +94,4 @@ class Product(db.Model):
             f"<Product {self.id} sku={self.sku!r} "
             f"on_hand={self.on_hand_qty} reserved={self.reserved_qty}>"
         )
+

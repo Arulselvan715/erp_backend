@@ -109,6 +109,7 @@ def serialize(data):
             elif result.get("procurement_type") == "buy":
                 result["procurement_type"] = "purchase"
             result["free_qty"] = float(data.free_to_use_qty)
+            result["procurement_strategy"] = data.procurement_strategy
 
         # Expose custom hybrid properties or class properties if they exist
         for key in dir(data.__class__):

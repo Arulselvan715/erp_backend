@@ -45,10 +45,18 @@ def create():
     if request.method == "POST":
         name = data.get("name", "").strip()
         sku = data.get("sku", "").strip()
+        description = data.get("description", "").strip()
+        category = data.get("category", "").strip()
         sales_price = float(data.get("sales_price", 0.0) or 0.0)
         cost_price = float(data.get("cost_price", 0.0) or 0.0)
         on_hand_qty = float(data.get("on_hand_qty", 0.0) or 0.0)
-        procure_on_demand = bool(data.get("procure_on_demand"))
+        
+        procure_on_demand = False
+        if "procure_on_demand" in data:
+            procure_on_demand = bool(data.get("procure_on_demand"))
+        elif "procurement_strategy" in data:
+            procure_on_demand = (data.get("procurement_strategy") == "make_to_order")
+
         procurement_type = data.get("procurement_type", "purchase")
         vendor_id = data.get("vendor_id")
         if vendor_id:
@@ -69,6 +77,8 @@ def create():
         product = Product(
             name=name,
             sku=sku,
+            description=description,
+            category=category,
             sales_price=sales_price,
             cost_price=cost_price,
             on_hand_qty=on_hand_qty,
@@ -135,6 +145,8 @@ def edit(product_id):
     if request.method in ["POST", "PUT"]:
         old = {
             "name": product.name, "sku": product.sku,
+            "description": product.description,
+            "category": product.category,
             "sales_price": float(product.sales_price),
             "cost_price": float(product.cost_price),
             "procurement_type": product.procurement_type,
@@ -144,11 +156,20 @@ def edit(product_id):
 
         product.name = data.get("name", "").strip() or product.name
         product.sku = data.get("sku", "").strip() or product.sku
+        if "description" in data:
+            product.description = data.get("description", "").strip()
+        if "category" in data:
+            product.category = data.get("category", "").strip()
         if "sales_price" in data:
             product.sales_price = float(data.get("sales_price", 0.0) or 0.0)
         if "cost_price" in data:
             product.cost_price = float(data.get("cost_price", 0.0) or 0.0)
-        product.procure_on_demand = bool(data.get("procure_on_demand"))
+        
+        if "procure_on_demand" in data:
+            product.procure_on_demand = bool(data.get("procure_on_demand"))
+        elif "procurement_strategy" in data:
+            product.procure_on_demand = (data.get("procurement_strategy") == "make_to_order")
+
         product.procurement_type = data.get("procurement_type", product.procurement_type)
         vendor_id = data.get("vendor_id")
         product.vendor_id = int(vendor_id) if vendor_id else None
@@ -156,6 +177,8 @@ def edit(product_id):
 
         new = {
             "name": product.name, "sku": product.sku,
+            "description": product.description,
+            "category": product.category,
             "sales_price": float(product.sales_price),
             "cost_price": float(product.cost_price),
             "procurement_type": product.procurement_type,
