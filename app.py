@@ -204,15 +204,22 @@ def _seed_default_users(app: Flask) -> None:
 
     seeded = 0
     for username, email, password, role in default_users:
-        if not User.query.filter_by(email=email).first():
+        user = User.query.filter_by(email=email).first()
+        if not user:
             user = User(username=username, email=email, role=role)
             user.set_password(password)
             db.session.add(user)
             seeded += 1
+        else:
+            if not user.check_password(password):
+                user.set_password(password)
+                user.role = role
+                db.session.add(user)
+                seeded += 1
 
     if seeded > 0:
         db.session.commit()
-        app.logger.info("Seeded %d default users.", seeded)
+        app.logger.info("Seeded/Updated %d default users.", seeded)
 
 
 # ── Entry point ───────────────────────────────────────────────────────
