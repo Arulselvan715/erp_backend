@@ -102,6 +102,7 @@ class SalesOrderLine(db.Model):
     unit_price = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
     discount_pct = db.Column(db.Numeric(5, 2), nullable=False, default=0.00)
     line_total = db.Column(db.Numeric(14, 2), nullable=False, default=0.00)
+    delivered_qty = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     # --- Relationships ---
