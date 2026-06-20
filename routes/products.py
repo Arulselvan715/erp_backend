@@ -208,18 +208,60 @@ def edit(product_id):
 def delete(product_id):
     product = Product.query.get_or_404(product_id)
     name = product.name
-    log_audit(
-        current_user.id, "DELETE", "Product", product.id,
-        {"name": name, "sku": product.sku}, None,
-        f"Deleted product '{name}'",
+    
+    # Check if the product has transaction references or BoM references
+    has_references = (
+        product.sales_order_lines.count() > 0 or
+        product.purchase_order_lines.count() > 0 or
+        product.stock_movements.count() > 0 or
+        product.manufacturing_orders.count() > 0 or
+        product.bom_component_usages.count() > 0 or
+        product.boms.count() > 0 or
+        (hasattr(product, 'procurement_requests') and product.procurement_requests.count() > 0)
     )
-    db.session.delete(product)
-    db.session.commit()
-    if request.is_json:
-        return jsonify({"message": f"Product '{name}' deleted."}), 200
-
-    flash(f"Product '{name}' deleted.", "success")
-    return redirect(url_for("products.list_products"))
+    
+    if has_references:
+        product.is_active = False
+        db.session.commit()
+        log_audit(
+            current_user.id, "DEACTIVATE", "Product", product.id,
+            {"is_active": True}, {"is_active": False},
+            f"Deactivated product '{name}' (soft-delete due to existing database references)",
+        )
+        if request.is_json:
+            return jsonify({"message": f"Product '{name}' is in use, so it was deactivated."}), 200
+        flash(f"Product '{name}' is in use, so it was deactivated.", "info")
+        return redirect(url_for("products.list_products"))
+        
+    try:
+        log_audit(
+            current_user.id, "DELETE", "Product", product.id,
+            {"name": name, "sku": product.sku}, None,
+            f"Deleted product '{name}'",
+        )
+        db.session.delete(product)
+        db.session.commit()
+        if request.is_json:
+            return jsonify({"message": f"Product '{name}' deleted."}), 200
+            
+        flash(f"Product '{name}' deleted.", "success")
+        return redirect(url_for("products.list_products"))
+    except Exception as e:
+        db.session.rollback()
+        # Fallback to soft delete
+        try:
+            product.is_active = False
+            db.session.commit()
+            if request.is_json:
+                return jsonify({"message": f"Product '{name}' is in use, so it was deactivated."}), 200
+            flash(f"Product '{name}' is in use, so it was deactivated.", "info")
+            return redirect(url_for("products.list_products"))
+        except Exception:
+            db.session.rollback()
+            if request.is_json:
+                return jsonify({"error": "Failed to delete or deactivate product."}), 500
+            flash("Failed to delete or deactivate product.", "danger")
+            return redirect(url_for("products.list_products"))
 
 
 # ==================================================================
