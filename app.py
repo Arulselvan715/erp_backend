@@ -26,6 +26,8 @@ def create_app(config_name: str | None = None) -> Flask:
     app.config.from_object(cfg or Config)
 
     # ── Initialise extensions ─────────────────────────────────────────
+    from flask_cors import CORS
+    CORS(app, supports_credentials=True)
     db.init_app(app)
 
     login_manager = LoginManager()
