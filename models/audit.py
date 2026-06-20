@@ -39,44 +39,37 @@ class AuditLog(db.Model):
 # Helper function
 # ======================================================================
 def log_audit(
+    user_id: int | None,
+    action: str,
     table_name: str,
     record_id: int,
-    action: str,
     old_values: dict | None = None,
     new_values: dict | None = None,
-    user_id: int | None = None,
-    ip_address: str = "",
-    user_agent: str = "",
+    details: str = "",
 ):
     """Create an audit-log entry.
 
     Parameters
     ----------
+    user_id : int | None
+        The user who performed the action.
+    action : str
+        One of ``INSERT``, ``UPDATE``, ``DELETE``, etc.
     table_name : str
-        The database table that was modified (e.g. ``"products"``).
+        The database table that was modified.
     record_id : int
         Primary key of the affected row.
-    action : str
-        One of ``INSERT``, ``UPDATE``, ``DELETE``.
     old_values : dict | None
         JSON-serialisable snapshot of the row *before* the change.
     new_values : dict | None
         JSON-serialisable snapshot of the row *after* the change.
-    user_id : int | None
-        The user who performed the action (``None`` for system actions).
-    ip_address : str
-        Client IP address (optional).
-    user_agent : str
-        Client user-agent string (optional).
+    details : str
+        Audit details or IP address (optional).
 
     Returns
     -------
     AuditLog
         The newly created (but uncommitted) audit log entry.
-
-    Note
-    ----
-    The caller is responsible for calling ``db.session.commit()``.
     """
     entry = AuditLog(
         table_name=table_name,
@@ -85,8 +78,8 @@ def log_audit(
         old_values=old_values,
         new_values=new_values,
         user_id=user_id,
-        ip_address=ip_address,
-        user_agent=user_agent,
+        ip_address=details,
+        user_agent="",
     )
     db.session.add(entry)
     return entry
