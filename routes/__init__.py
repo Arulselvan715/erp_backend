@@ -7,6 +7,7 @@ from .sales import sales_bp
 from .purchase import purchase_bp
 from .manufacturing import manufacturing_bp
 from .inventory import inventory_bp
+from .reports import reports_bp
 
 all_blueprints = [
     auth_bp,
@@ -18,6 +19,7 @@ all_blueprints = [
     purchase_bp,
     manufacturing_bp,
     inventory_bp,
+    reports_bp,
 ]
 
 
