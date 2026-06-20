@@ -28,6 +28,10 @@ def create_app(config_name: str | None = None) -> Flask:
     # ── Initialise extensions ─────────────────────────────────────────
     from flask_cors import CORS
     CORS(app, supports_credentials=True)
+    
+    from routes.utils import patch_render_template
+    patch_render_template()
+    
     db.init_app(app)
 
     login_manager = LoginManager()
@@ -51,7 +55,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from routes.manufacturing import manufacturing_bp
     from routes.inventory import inventory_bp
 
-    app.register_blueprint(auth_bp)
+    app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
     app.register_blueprint(products_bp, url_prefix="/products")
     app.register_blueprint(customers_bp, url_prefix="/customers")
