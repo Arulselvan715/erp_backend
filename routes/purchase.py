@@ -313,3 +313,155 @@ def receive(order_id):
             return redirect(url_for("purchase.view", order_id=po.id))
 
     return render_template("purchase/receive.html", order=po)
+
+
+# ------------------------------------------------------------------
+# Procurement Requests API
+# ------------------------------------------------------------------
+from models.purchase import ProcurementRequest
+
+@purchase_bp.route("/procurement-requests", methods=["GET"])
+@purchase_bp.route("/procurement-requests/", methods=["GET"])
+@login_required
+def list_procurement_requests():
+    """List all procurement requests."""
+    status_filter = request.args.get("status", "").strip()
+    query = ProcurementRequest.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    requests_list = query.order_by(ProcurementRequest.created_at.desc()).all()
+    
+    from routes.utils import serialize
+    return jsonify({
+        "data": [serialize(r) for r in requests_list],
+        "total": len(requests_list)
+    })
+
+@purchase_bp.route("/procurement-requests", methods=["POST"])
+@purchase_bp.route("/procurement-requests/", methods=["POST"])
+@login_required
+@role_required("admin", "manager", "purchasing", "production", "warehouse")
+def create_procurement_request():
+    """Create a new procurement request."""
+    data = request.get_json() or {}
+    product_id = data.get("product_id")
+    quantity = float(data.get("quantity") or 0)
+    notes = data.get("notes", "").strip()
+    
+    if not product_id or quantity <= 0:
+        return jsonify({"error": "Select a product and enter a valid quantity."}), 400
+        
+    product = Product.query.get_or_404(product_id)
+    
+    req = ProcurementRequest(
+        product_id=product.id,
+        quantity=quantity,
+        status="pending",
+        user_id=current_user.id,
+        notes=notes
+    )
+    db.session.add(req)
+    db.session.commit()
+    
+    log_audit(
+        current_user.id, "CREATE", "ProcurementRequest", req.id,
+        None,
+        {"product_id": product.id, "quantity": quantity},
+        f"Created procurement request #{req.id} for {quantity} × {product.name}",
+    )
+    
+    from routes.utils import serialize
+    return jsonify({
+        "message": f"Procurement request #{req.id} created.",
+        "data": serialize(req)
+    }), 201
+
+@purchase_bp.route("/procurement-requests/<int:req_id>", methods=["PUT"])
+@login_required
+@role_required("admin", "manager", "purchasing")
+def update_procurement_request(req_id):
+    """Approve or reject a procurement request."""
+    req = ProcurementRequest.query.get_or_404(req_id)
+    data = request.get_json() or {}
+    new_status = data.get("status", "").strip().lower()
+    
+    if new_status not in ["approved", "rejected"]:
+        return jsonify({"error": "Invalid status. Must be approved or rejected."}), 400
+        
+    if req.status != "pending":
+        return jsonify({"error": f"Cannot update request in '{req.status}' status."}), 400
+        
+    old_status = req.status
+    req.status = new_status
+    req.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    
+    log_audit(
+        current_user.id, "UPDATE", "ProcurementRequest", req.id,
+        {"status": old_status}, {"status": new_status},
+        f"Updated procurement request #{req.id} status to {new_status}",
+    )
+    
+    from routes.utils import serialize
+    return jsonify({
+        "message": f"Procurement request #{req.id} {new_status}.",
+        "data": serialize(req)
+    }), 200
+
+@purchase_bp.route("/procurement-requests/<int:req_id>/create-po", methods=["POST"])
+@login_required
+@role_required("admin", "manager", "purchasing")
+def create_po_from_request(req_id):
+    """Generate a draft Purchase Order from an approved request."""
+    req = ProcurementRequest.query.get_or_404(req_id)
+    
+    if req.status != "approved":
+        return jsonify({"error": "Only approved requests can be converted to Purchase Orders."}), 400
+        
+    product = Product.query.get(req.product_id)
+    vendor_id = product.vendor_id
+    if not vendor_id:
+        # Fall back to the first vendor in the system if no default vendor
+        first_vendor = Vendor.query.first()
+        if not first_vendor:
+            return jsonify({"error": "No vendor found in the system to assign this PO to."}), 400
+        vendor_id = first_vendor.id
+        
+    # Create Purchase Order
+    po = PurchaseOrder(vendor_id=vendor_id, status="draft", total_amount=0)
+    db.session.add(po)
+    db.session.flush()
+    
+    price = product.cost_price or 0
+    line_total = float(req.quantity) * float(price)
+    
+    line = PurchaseOrderLine(
+        purchase_order_id=po.id,
+        product_id=product.id,
+        quantity=req.quantity,
+        received_qty=0,
+        unit_price=price,
+        line_total=line_total
+    )
+    db.session.add(line)
+    po.total_amount = line_total
+    
+    # Mark request as po_created
+    req.status = "po_created"
+    req.updated_at = datetime.now(timezone.utc)
+    
+    db.session.commit()
+    
+    log_audit(
+        current_user.id, "CREATE", "PurchaseOrder", po.id,
+        None,
+        {"vendor_id": vendor_id, "total": line_total, "procurement_request_id": req.id},
+        f"Generated Purchase Order #{po.id} from procurement request #{req.id}",
+    )
+    
+    from routes.utils import serialize
+    return jsonify({
+        "message": f"Purchase Order #{po.order_number} created from request #{req.id}.",
+        "po_id": po.id,
+        "data": serialize(req)
+    }), 201

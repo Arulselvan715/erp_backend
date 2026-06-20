@@ -260,6 +260,18 @@ class WorkOrder(db.Model):
     def operation_name(self) -> str:
         return self.bom_operation.name if self.bom_operation else ""
 
+    @property
+    def order_number(self) -> str:
+        return self.manufacturing_order.order_number if self.manufacturing_order else ""
+
+    @property
+    def product_name(self) -> str:
+        return self.manufacturing_order.product.name if self.manufacturing_order and self.manufacturing_order.product else ""
+
+    @property
+    def work_center(self) -> str:
+        return self.bom_operation.work_center if self.bom_operation else ""
+
     def __repr__(self) -> str:
         return (
             f"<WorkOrder {self.id} mo={self.manufacturing_order_id} "

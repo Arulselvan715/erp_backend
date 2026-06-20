@@ -62,6 +62,27 @@ class Product(db.Model):
     # Computed properties
     # ------------------------------------------------------------------
     @property
+    def bom_id(self):
+        bom = self.boms.first()
+        return bom.id if bom else None
+
+    @bom_id.setter
+    def bom_id(self, value):
+        from .manufacturing import BillOfMaterials
+        if value:
+            bom = BillOfMaterials.query.get(value)
+            if bom:
+                bom.product_id = self.id
+
+    @property
+    def free_qty(self):
+        return float(self.free_to_use_qty)
+
+    @property
+    def low_stock_threshold(self):
+        return float(self.reorder_level or 0.0)
+
+    @property
     def sales_price(self):
         """Alias for unit_price to support template and controller compatibility."""
         return self.unit_price

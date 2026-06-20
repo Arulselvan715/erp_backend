@@ -133,3 +133,50 @@ class PurchaseOrderLine(db.Model):
             f"<PurchaseOrderLine {self.id} order={self.order_id} "
             f"product={self.product_id} qty={self.quantity}>"
         )
+
+
+class ProcurementRequest(db.Model):
+    """A request to procure raw materials or products."""
+
+    __tablename__ = "procurement_requests"
+
+    STATUSES = ("pending", "approved", "po_created", "rejected")
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(
+        db.Integer, db.ForeignKey("products.id"), nullable=False, index=True
+    )
+    quantity = db.Column(db.Numeric(12, 2), nullable=False, default=1.00)
+    status = db.Column(
+        db.String(20), nullable=False, default="pending", index=True
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=False, index=True, default=get_current_user_id
+    )
+    notes = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    # --- Relationships ---
+    product = db.relationship("Product", backref=db.backref("procurement_requests", lazy="dynamic"))
+    user = db.relationship("User", backref=db.backref("procurement_requests", lazy="dynamic"))
+
+    @property
+    def product_name(self) -> str:
+        return self.product.name if self.product else ""
+
+    @property
+    def product_sku(self) -> str:
+        return self.product.sku if self.product else ""
+
+    @property
+    def requester_username(self) -> str:
+        return self.user.username if self.user else ""
+
+    def __repr__(self) -> str:
+        return (
+            f"<ProcurementRequest {self.id} product={self.product_id} "
+            f"qty={self.quantity} status={self.status!r}>"
+        )

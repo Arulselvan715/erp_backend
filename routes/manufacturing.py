@@ -81,7 +81,7 @@ def list_orders():
 def create():
     # Only show products that have a BoM
     products = (
-        Product.query.filter(Product.bom_id.isnot(None))
+        Product.query.filter(Product.boms.any())
         .order_by(Product.name)
         .all()
     )
@@ -506,3 +506,21 @@ def cancel(order_id):
 
     flash(f"Manufacturing Order #{mo.id} cancelled.", "success")
     return redirect(url_for("manufacturing.view", order_id=mo.id))
+
+
+@manufacturing_bp.route("/work-orders", methods=["GET"])
+@manufacturing_bp.route("/work-orders/", methods=["GET"])
+@login_required
+def list_work_orders():
+    """List all work orders in the system."""
+    status_filter = request.args.get("status", "").strip()
+    query = WorkOrder.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    orders = query.order_by(WorkOrder.sequence, WorkOrder.id.desc()).all()
+    
+    from routes.utils import serialize
+    return jsonify({
+        "data": [serialize(wo) for wo in orders],
+        "total": len(orders)
+    })

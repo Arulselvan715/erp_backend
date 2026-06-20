@@ -87,18 +87,144 @@ def create_app(config_name: str | None = None) -> Flask:
     def index():
         return redirect(url_for("auth.login"))
 
-    @app.route("/users/", methods=["GET"])
-    @app.route("/users", methods=["GET"])
+    @app.route("/users/", methods=["GET", "POST"])
+    @app.route("/users", methods=["GET", "POST"])
     @login_required
     def list_users():
         from models.user import User
         from routes.utils import serialize
-        from flask import jsonify
+        from flask import jsonify, request
+        
+        # Check permissions for create
+        if request.method == "POST":
+            # Only admin can create users from the user management screen
+            if current_user.role != "Admin":
+                return jsonify({"error": "Only administrators can create users."}), 403
+                
+            data = request.json or {}
+            username = data.get("username", "").strip()
+            email = data.get("email", "").strip()
+            password = data.get("password", "")
+            first_name = data.get("first_name", "").strip()
+            last_name = data.get("last_name", "").strip()
+            role = data.get("role", "Sales User").strip()
+            
+            if not username or not email or not password:
+                return jsonify({"error": "Username, email, and password are required."}), 400
+                
+            if User.query.filter_by(username=username).first():
+                return jsonify({"error": "Username already exists."}), 400
+                
+            if User.query.filter_by(email=email).first():
+                return jsonify({"error": "Email already exists."}), 400
+                
+            user = User(
+                username=username,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                role=role
+            )
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            
+            from models.audit import log_audit
+            log_audit(current_user.id, "CREATE", "User", user.id, None, None, f"Admin created user '{user.username}' with role '{user.role}'")
+            
+            return jsonify({
+                "message": "User created successfully.",
+                "user": serialize(user)
+            }), 201
+
         users = User.query.order_by(User.username).all()
         return jsonify({
             "data": [serialize(u) for u in users],
             "total": len(users)
         })
+
+    @app.route("/users/<int:user_id>", methods=["PUT", "DELETE"])
+    @login_required
+    def update_delete_user(user_id):
+        from models.user import User
+        from routes.utils import serialize
+        from flask import jsonify, request
+        
+        if current_user.role != "Admin":
+            return jsonify({"error": "Only administrators can manage users."}), 403
+            
+        user = User.query.get_or_404(user_id)
+        
+        if request.method == "DELETE":
+            # Prevent admin from deleting themselves
+            if user.id == current_user.id:
+                return jsonify({"error": "You cannot delete your own account."}), 400
+                
+            username = user.username
+            db.session.delete(user)
+            db.session.commit()
+            
+            from models.audit import log_audit
+            log_audit(current_user.id, "DELETE", "User", user.id, {"username": username}, None, f"Admin deleted user '{username}'")
+            
+            return jsonify({"message": f"User '{username}' deleted successfully."}), 200
+            
+        # PUT method (update details)
+        data = request.json or {}
+        username = data.get("username", "").strip()
+        email = data.get("email", "").strip()
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        role = data.get("role", "").strip()
+        is_active = data.get("is_active")
+        password = data.get("password", "")
+        
+        old_data = {
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "is_active": user.is_active
+        }
+        
+        if username and username != user.username:
+            if User.query.filter_by(username=username).first():
+                return jsonify({"error": "Username already exists."}), 400
+            user.username = username
+            
+        if email and email != user.email:
+            if User.query.filter_by(email=email).first():
+                return jsonify({"error": "Email already exists."}), 400
+            user.email = email
+            
+        if first_name is not None:
+            user.first_name = first_name
+        if last_name is not None:
+            user.last_name = last_name
+        if role:
+            user.role = role
+        if is_active is not None:
+            # Prevent admin from deactivating themselves
+            if user.id == current_user.id and not is_active:
+                return jsonify({"error": "You cannot deactivate your own account."}), 400
+            user.is_active = bool(is_active)
+            
+        if password:
+            user.set_password(password)
+            
+        db.session.commit()
+        
+        from models.audit import log_audit
+        log_audit(current_user.id, "UPDATE", "User", user.id, old_data, {
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "is_active": user.is_active
+        }, f"Admin updated user '{user.username}'")
+        
+        return jsonify({
+            "message": "User updated successfully.",
+            "user": serialize(user)
+        }), 200
 
     # ── Create tables & seed data ─────────────────────────────────────
     with app.app_context():

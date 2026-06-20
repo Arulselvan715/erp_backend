@@ -20,7 +20,7 @@ from .product import Product  # noqa: E402, F401
 from .customer import Customer  # noqa: E402, F401
 from .vendor import Vendor  # noqa: E402, F401
 from .sales import SalesOrder, SalesOrderLine  # noqa: E402, F401
-from .purchase import PurchaseOrder, PurchaseOrderLine  # noqa: E402, F401
+from .purchase import PurchaseOrder, PurchaseOrderLine, ProcurementRequest  # noqa: E402, F401
 from .manufacturing import (  # noqa: E402, F401
     BillOfMaterials,
     BomLine,
@@ -45,6 +45,7 @@ __all__ = [
     # Purchasing
     "PurchaseOrder",
     "PurchaseOrderLine",
+    "ProcurementRequest",
     # Manufacturing
     "BillOfMaterials",
     "BomLine",

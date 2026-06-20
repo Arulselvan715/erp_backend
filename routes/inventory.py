@@ -15,6 +15,7 @@ inventory_bp = Blueprint("inventory", __name__, url_prefix="/inventory")
 # Stock Levels overview
 # ------------------------------------------------------------------
 @inventory_bp.route("/")
+@inventory_bp.route("")
 @login_required
 def stock_levels():
     """Show all products with on-hand, reserved, and free-to-use quantities."""
@@ -25,6 +26,13 @@ def stock_levels():
             Product.name.ilike(f"%{q}%") | Product.sku.ilike(f"%{q}%")
         )
     products = query.order_by(Product.name).all()
+
+    accept_header = request.headers.get("Accept", "")
+    if request.is_json or "application/json" in accept_header or request.args.get("format") == "json":
+        from routes.utils import serialize
+        from flask import jsonify
+        return jsonify([serialize(p) for p in products])
+
     return render_template("inventory/stock_levels.html", products=products, q=q)
 
 
@@ -51,6 +59,15 @@ def ledger():
         query.order_by(StockLedger.created_at.desc())
         .paginate(page=page, per_page=per_page, error_out=False)
     )
+
+    accept_header = request.headers.get("Accept", "")
+    if request.is_json or "application/json" in accept_header or request.args.get("format") == "json":
+        from routes.utils import serialize
+        from flask import jsonify
+        return jsonify({
+            "data": [serialize(item) for item in pagination.items],
+            "total": pagination.total
+        })
 
     products = Product.query.order_by(Product.name).all()
 
@@ -96,11 +113,20 @@ def adjust():
     products = Product.query.order_by(Product.name).all()
 
     if request.method == "POST":
-        product_id = request.form.get("product_id", type=int)
-        qty_change = request.form.get("qty_change", type=float)
-        reason = request.form.get("reason", "").strip()
+        data = request.get_json() if request.is_json else request.form
+        product_id = data.get("product_id")
+        qty_change = data.get("qty_change") or data.get("quantity")
+        reason = data.get("reason", "").strip()
+
+        if product_id is not None:
+            product_id = int(product_id)
+        if qty_change is not None:
+            qty_change = float(qty_change)
 
         if not product_id or qty_change is None:
+            if request.is_json:
+                from flask import jsonify
+                return jsonify({"error": "Product and quantity change are required."}), 400
             flash("Product and quantity change are required.", "warning")
             return render_template("inventory/adjust.html", products=products)
 
@@ -114,6 +140,9 @@ def adjust():
 
         # Prevent negative stock (optional guard)
         if product.on_hand_qty < 0:
+            if request.is_json:
+                from flask import jsonify
+                return jsonify({"error": f"Adjustment would result in negative stock ({product.on_hand_qty}). Current on-hand: {old_qty}."}), 400
             flash(
                 f"Adjustment would result in negative stock ({product.on_hand_qty}). "
                 f"Current on-hand: {old_qty}.",
@@ -135,6 +164,13 @@ def adjust():
         )
 
         db.session.commit()
+
+        if request.is_json:
+            from flask import jsonify
+            return jsonify({
+                "message": f"Adjusted '{product.name}' by {'+' if qty_change >= 0 else ''}{qty_change}. New on-hand: {product.on_hand_qty}."
+            }), 200
+
         flash(
             f"Adjusted '{product.name}' by {'+' if qty_change >= 0 else ''}{qty_change}. "
             f"New on-hand: {product.on_hand_qty}.",

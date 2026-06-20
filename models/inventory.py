@@ -41,6 +41,10 @@ class StockLedger(db.Model):
     user = db.relationship("User", back_populates="stock_movements")
 
     @property
+    def timestamp(self) -> str:
+        return self.created_at.isoformat() if self.created_at else ""
+
+    @property
     def product_name(self) -> str:
         return self.product.name if self.product else ""
 
