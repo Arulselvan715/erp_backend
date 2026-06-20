@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 
 from models import db, Product, Vendor, BillOfMaterials, BomLine, BomOperation
 from models.audit import log_audit
-from routes.utils import role_required
+from routes.utils import role_required, is_json_request
 
 products_bp = Blueprint("products", __name__, url_prefix="/products")
 
@@ -63,13 +63,13 @@ def create():
             vendor_id = int(vendor_id)
 
         if not name or not sku:
-            if request.is_json:
+            if is_json_request():
                 return jsonify({"error": "Product name and SKU are required."}), 400
             flash("Product name and SKU are required.", "warning")
             return render_template("products/form.html", product=None, vendors=vendors)
 
         if Product.query.filter_by(sku=sku).first():
-            if request.is_json:
+            if is_json_request():
                 return jsonify({"error": f"SKU '{sku}' already exists."}), 400
             flash(f"SKU '{sku}' already exists.", "danger")
             return render_template("products/form.html", product=None, vendors=vendors)
@@ -96,7 +96,7 @@ def create():
             {"name": name, "sku": sku, "procurement_type": procurement_type},
             f"Created product '{name}' (SKU: {sku})",
         )
-        if request.is_json:
+        if is_json_request():
             return jsonify({
                 "message": f"Product '{name}' created.",
                 "id": product.id
@@ -190,7 +190,7 @@ def edit(product_id):
             old, new,
             f"Updated product '{product.name}'",
         )
-        if request.is_json:
+        if is_json_request():
             return jsonify({"message": f"Product '{product.name}' updated."}), 200
 
         flash(f"Product '{product.name}' updated.", "success")
@@ -204,7 +204,7 @@ def edit(product_id):
 # ------------------------------------------------------------------
 @products_bp.route("/<int:product_id>/delete", methods=["POST", "DELETE"])
 @login_required
-@role_required("admin")
+@role_required("admin", "manager")
 def delete(product_id):
     product = Product.query.get_or_404(product_id)
     name = product.name
@@ -228,7 +228,8 @@ def delete(product_id):
             {"is_active": True}, {"is_active": False},
             f"Deactivated product '{name}' (soft-delete due to existing database references)",
         )
-        if request.is_json:
+        db.session.commit()
+        if is_json_request():
             return jsonify({"message": f"Product '{name}' is in use, so it was deactivated."}), 200
         flash(f"Product '{name}' is in use, so it was deactivated.", "info")
         return redirect(url_for("products.list_products"))
@@ -241,7 +242,7 @@ def delete(product_id):
         )
         db.session.delete(product)
         db.session.commit()
-        if request.is_json:
+        if is_json_request():
             return jsonify({"message": f"Product '{name}' deleted."}), 200
             
         flash(f"Product '{name}' deleted.", "success")
@@ -252,13 +253,13 @@ def delete(product_id):
         try:
             product.is_active = False
             db.session.commit()
-            if request.is_json:
+            if is_json_request():
                 return jsonify({"message": f"Product '{name}' is in use, so it was deactivated."}), 200
             flash(f"Product '{name}' is in use, so it was deactivated.", "info")
             return redirect(url_for("products.list_products"))
         except Exception:
             db.session.rollback()
-            if request.is_json:
+            if is_json_request():
                 return jsonify({"error": "Failed to delete or deactivate product."}), 500
             flash("Failed to delete or deactivate product.", "danger")
             return redirect(url_for("products.list_products"))

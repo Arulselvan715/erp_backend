@@ -63,6 +63,18 @@ def role_required(*roles):
     return decorator
 
 
+def is_json_request():
+    """Check if the current request expects a JSON response."""
+    from flask import request
+    accept_header = request.headers.get("Accept", "")
+    return (
+        request.is_json or
+        "application/json" in accept_header or
+        request.path.startswith("/api/") or
+        request.args.get("format") == "json"
+    )
+
+
 from datetime import datetime, date
 from decimal import Decimal
 import flask

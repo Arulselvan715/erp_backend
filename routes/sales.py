@@ -28,7 +28,7 @@ from models import (
 )
 from models.inventory import log_stock_movement
 from models.audit import log_audit
-from routes.utils import role_required
+from routes.utils import role_required, is_json_request
 
 sales_bp = Blueprint("sales", __name__, url_prefix="/sales")
 
@@ -134,7 +134,7 @@ def create():
     products = Product.query.order_by(Product.name).all()
 
     if request.method == "POST":
-        data = request.get_json() if request.is_json else None
+        data = request.get_json() if is_json_request() else None
         
         if data:
             customer_id = data.get("customer_id")
@@ -260,7 +260,7 @@ def view(order_id):
 def confirm(order_id):
     so = SalesOrder.query.get_or_404(order_id)
     if so.status != "draft":
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Only draft orders can be confirmed."}), 400
         flash("Only draft orders can be confirmed.", "warning")
         return redirect(url_for("sales.view", order_id=so.id))
@@ -299,7 +299,7 @@ def confirm(order_id):
         {"status": "draft"}, {"status": "confirmed"},
         f"Confirmed Sales Order #{so.id}",
     )
-    if request.is_json:
+    if is_json_request():
         return jsonify({"message": f"Sales Order #{so.id} confirmed."}), 200
 
     flash(f"Sales Order #{so.id} confirmed.", "success")
@@ -315,12 +315,12 @@ def confirm(order_id):
 def deliver(order_id):
     so = SalesOrder.query.get_or_404(order_id)
     if so.status not in ("confirmed", "partially_delivered"):
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Only confirmed or partially delivered orders can be delivered."}), 400
         flash("Only confirmed orders can be delivered.", "warning")
         return redirect(url_for("sales.view", order_id=so.id))
 
-    if request.is_json:
+    if is_json_request():
         deliveries = request.get_json() or []
         # Validate first
         for item in deliveries:
@@ -429,7 +429,7 @@ def deliver(order_id):
 def cancel(order_id):
     so = SalesOrder.query.get_or_404(order_id)
     if so.status not in ("draft", "confirmed", "partially_delivered"):
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Cannot cancel this order."}), 400
         flash("Cannot cancel this order.", "warning")
         return redirect(url_for("sales.view", order_id=so.id))
@@ -459,7 +459,7 @@ def cancel(order_id):
         {"status": old_status}, {"status": "cancelled"},
         f"Cancelled Sales Order #{so.id}",
     )
-    if request.is_json:
+    if is_json_request():
         return jsonify({"message": f"Sales Order #{so.id} cancelled."}), 200
 
     flash(f"Sales Order #{so.id} cancelled.", "success")

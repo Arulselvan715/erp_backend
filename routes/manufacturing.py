@@ -26,7 +26,7 @@ from models import (
 )
 from models.inventory import log_stock_movement
 from models.audit import log_audit
-from routes.utils import role_required
+from routes.utils import role_required, is_json_request
 
 manufacturing_bp = Blueprint("manufacturing", __name__, url_prefix="/manufacturing")
 
@@ -87,7 +87,7 @@ def create():
     )
 
     if request.method == "POST":
-        data = request.get_json() if request.is_json else None
+        data = request.get_json() if is_json_request() else None
         
         if data:
             product_id = data.get("product_id")
@@ -196,7 +196,7 @@ def create():
 @login_required
 def view(order_id):
     order = ManufacturingOrder.query.get_or_404(order_id)
-    if request.is_json:
+    if is_json_request():
         from routes.utils import serialize
         return jsonify(serialize(order))
     bom = BillOfMaterials.query.get(order.bom_id)
@@ -212,14 +212,14 @@ def view(order_id):
 def confirm(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status != "draft":
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Only draft manufacturing orders can be confirmed."}), 400
         flash("Only draft manufacturing orders can be confirmed.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
 
     bom = BillOfMaterials.query.get(mo.bom_id)
     if bom is None:
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "BoM not found. Cannot confirm."}), 400
         flash("BoM not found. Cannot confirm.", "danger")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
@@ -248,7 +248,7 @@ def confirm(order_id):
     if shortage_products:
         db.session.rollback()
         err_msg = "Insufficient component stock: " + "; ".join(shortage_products)
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": err_msg}), 400
         flash(err_msg, "danger")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
@@ -263,7 +263,7 @@ def confirm(order_id):
         f"Confirmed Manufacturing Order #{mo.id}",
     )
     
-    if request.is_json:
+    if is_json_request():
         from routes.utils import serialize
         return jsonify(serialize(mo))
 
@@ -280,7 +280,7 @@ def confirm(order_id):
 def start(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status != "confirmed":
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Only confirmed orders can be started."}), 400
         flash("Only confirmed orders can be started.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
@@ -306,7 +306,7 @@ def start(order_id):
         f"Started Manufacturing Order #{mo.id}",
     )
     
-    if request.is_json:
+    if is_json_request():
         from routes.utils import serialize
         return jsonify(serialize(mo))
 
@@ -399,7 +399,7 @@ def update_work_order(wo_id):
 def complete(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status != "in_progress":
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Only in-progress orders can be completed."}), 400
         flash("Only in-progress orders can be completed.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
@@ -411,7 +411,7 @@ def complete(order_id):
     ).count()
     if pending_wos > 0:
         err_msg = f"Cannot complete: {pending_wos} work order(s) still pending."
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": err_msg}), 400
         flash(err_msg, "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
@@ -451,7 +451,7 @@ def complete(order_id):
         f"Completed Manufacturing Order #{mo.id}",
     )
     
-    if request.is_json:
+    if is_json_request():
         from routes.utils import serialize
         return jsonify(serialize(mo))
 
@@ -468,7 +468,7 @@ def complete(order_id):
 def cancel(order_id):
     mo = ManufacturingOrder.query.get_or_404(order_id)
     if mo.status in ("done", "cancelled"):
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Cannot cancel a completed or already-cancelled order."}), 400
         flash("Cannot cancel a completed or already-cancelled order.", "warning")
         return redirect(url_for("manufacturing.view", order_id=mo.id))
@@ -500,7 +500,7 @@ def cancel(order_id):
         f"Cancelled Manufacturing Order #{mo.id}",
     )
     
-    if request.is_json:
+    if is_json_request():
         from routes.utils import serialize
         return jsonify(serialize(mo))
 

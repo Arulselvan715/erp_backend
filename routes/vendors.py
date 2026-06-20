@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 
 from models import db, Vendor
 from models.audit import log_audit
-from routes.utils import role_required
+from routes.utils import role_required, is_json_request
 
 vendors_bp = Blueprint("vendors", __name__, url_prefix="/vendors")
 
@@ -45,7 +45,7 @@ def create():
         address = data.get("address", "").strip()
 
         if not name:
-            if request.is_json:
+            if is_json_request():
                 return jsonify({"error": "Vendor name is required."}), 400
             flash("Vendor name is required.", "warning")
             return render_template("vendors/form.html", vendor=None)
@@ -61,9 +61,9 @@ def create():
             f"Created vendor '{name}'",
         )
         
-        if request.is_json:
+        if is_json_request():
             return jsonify({
-                "message": f"Vendor '{name}' created successfully.",
+                "message": f"Vendor '{name}' created.",
                 "id": vendor.id
             }), 201
 
@@ -122,7 +122,7 @@ def edit(vendor_id):
             f"Updated vendor '{vendor.name}'",
         )
         
-        if request.is_json:
+        if is_json_request():
             return jsonify({"message": f"Vendor '{vendor.name}' updated."}), 200
 
         flash(f"Vendor '{vendor.name}' updated.", "success")
@@ -148,7 +148,7 @@ def delete(vendor_id):
     db.session.delete(vendor)
     db.session.commit()
     
-    if request.is_json:
+    if is_json_request():
         return jsonify({"message": f"Vendor '{name}' deleted."}), 200
 
     flash(f"Vendor '{name}' deleted.", "success")

@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 
 from models import db, Customer
 from models.audit import log_audit
-from routes.utils import role_required
+from routes.utils import role_required, is_json_request
 
 customers_bp = Blueprint("customers", __name__, url_prefix="/customers")
 
@@ -45,7 +45,7 @@ def create():
         address = data.get("address", "").strip()
 
         if not name:
-            if request.is_json:
+            if is_json_request():
                 return jsonify({"error": "Customer name is required."}), 400
             flash("Customer name is required.", "warning")
             return render_template("customers/form.html", customer=None)
@@ -61,9 +61,9 @@ def create():
             f"Created customer '{name}'",
         )
         
-        if request.is_json:
+        if is_json_request():
             return jsonify({
-                "message": f"Customer '{name}' created successfully.",
+                "message": f"Customer '{name}' created.",
                 "id": customer.id
             }), 201
 
@@ -122,7 +122,7 @@ def edit(customer_id):
             f"Updated customer '{customer.name}'",
         )
         
-        if request.is_json:
+        if is_json_request():
             return jsonify({"message": f"Customer '{customer.name}' updated."}), 200
 
         flash(f"Customer '{customer.name}' updated.", "success")
@@ -148,7 +148,7 @@ def delete(customer_id):
     db.session.delete(customer)
     db.session.commit()
     
-    if request.is_json:
+    if is_json_request():
         return jsonify({"message": f"Customer '{name}' deleted."}), 200
 
     flash(f"Customer '{name}' deleted.", "success")

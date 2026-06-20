@@ -20,7 +20,7 @@ from models import (
 )
 from models.inventory import log_stock_movement
 from models.audit import log_audit
-from routes.utils import role_required
+from routes.utils import role_required, is_json_request
 
 purchase_bp = Blueprint("purchase", __name__, url_prefix="/purchase")
 
@@ -53,7 +53,7 @@ def create():
     products = Product.query.order_by(Product.name).all()
 
     if request.method == "POST":
-        data = request.get_json() if request.is_json else None
+        data = request.get_json() if is_json_request() else None
         
         if data:
             vendor_id = data.get("vendor_id")
@@ -179,7 +179,7 @@ def view(order_id):
 def confirm(order_id):
     po = PurchaseOrder.query.get_or_404(order_id)
     if po.status != "draft":
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Only draft purchase orders can be confirmed."}), 400
         flash("Only draft purchase orders can be confirmed.", "warning")
         return redirect(url_for("purchase.view", order_id=po.id))
@@ -193,7 +193,7 @@ def confirm(order_id):
         {"status": "draft"}, {"status": "confirmed"},
         f"Confirmed Purchase Order #{po.id}",
     )
-    if request.is_json:
+    if is_json_request():
         return jsonify({"message": f"Purchase Order #{po.id} confirmed."}), 200
 
     flash(f"Purchase Order #{po.id} confirmed.", "success")
@@ -209,13 +209,13 @@ def confirm(order_id):
 def receive(order_id):
     po = PurchaseOrder.query.get_or_404(order_id)
     if po.status not in ("confirmed", "partially_received"):
-        if request.is_json:
+        if is_json_request():
             return jsonify({"error": "Only confirmed purchase orders can be received."}), 400
         flash("Only confirmed purchase orders can be received.", "warning")
         return redirect(url_for("purchase.view", order_id=po.id))
 
     if request.method == "POST":
-        if request.is_json:
+        if is_json_request():
             receipts = request.get_json() or []
             # Validate first
             for item in receipts:
