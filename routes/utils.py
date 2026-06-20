@@ -125,8 +125,9 @@ def patch_render_template():
     def custom_render_template(template_name_or_list, **context):
         from flask import request, jsonify
         # Check if request expects JSON
+        accept_header = request.headers.get("Accept", "")
         if (request.is_json or 
-            request.headers.get("Accept") == "application/json" or 
+            "application/json" in accept_header or 
             request.path.startswith("/api/") or
             request.args.get("format") == "json"):
             

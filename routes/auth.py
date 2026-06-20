@@ -16,7 +16,8 @@ auth_bp = Blueprint("auth", __name__)
 def login():
     """Show the login form (GET) or authenticate the user (POST)."""
     if current_user.is_authenticated:
-        if request.is_json or request.headers.get("Accept") == "application/json":
+        accept_header = request.headers.get("Accept", "")
+        if request.is_json or "application/json" in accept_header:
             return jsonify({
                 "access_token": "dummy-session-token",
                 "user": {
@@ -30,7 +31,8 @@ def login():
 
     if request.method == "POST":
         # Check for JSON API login request
-        if request.is_json or request.headers.get("Accept") == "application/json":
+        accept_header = request.headers.get("Accept", "")
+        if request.is_json or "application/json" in accept_header:
             data = request.json or {}
             email = data.get("email", "").strip()
             password = data.get("password", "")
