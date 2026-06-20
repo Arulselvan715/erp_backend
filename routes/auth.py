@@ -96,3 +96,58 @@ def logout():
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
+
+
+# ------------------------------------------------------------------
+# Register
+# ------------------------------------------------------------------
+@auth_bp.route("/register", methods=["POST"])
+def register():
+    """Register a new user (JSON API)."""
+    accept_header = request.headers.get("Accept", "")
+    if request.is_json or "application/json" in accept_header:
+        data = request.json or {}
+        username = data.get("username", "").strip()
+        email = data.get("email", "").strip()
+        password = data.get("password", "")
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        role = data.get("role", "Sales User").strip()
+
+        if not username or not email or not password:
+            return jsonify({"error": "Username, email, and password are required."}), 400
+
+        # Restrict registration roles to 'Sales User' and 'Purchase User' for security
+        if role not in ["Sales User", "Purchase User"]:
+            return jsonify({"error": "Registration is only allowed for Sales User or Purchase User roles."}), 400
+
+        if User.query.filter_by(username=username).first():
+            return jsonify({"error": "Username already exists."}), 400
+
+        if User.query.filter_by(email=email).first():
+            return jsonify({"error": "Email already exists."}), 400
+
+        user = User(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            role=role
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        log_audit(user.id, "REGISTER", "User", user.id, None, None, f"User '{user.username}' registered successfully")
+
+        return jsonify({
+            "message": "User registered successfully.",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role
+            }
+        }), 201
+
+    return jsonify({"error": "JSON API request expected."}), 400
