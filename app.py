@@ -72,6 +72,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from routes.manufacturing import manufacturing_bp
     from routes.inventory import inventory_bp
     from routes.reports import reports_bp
+    from routes.bom import bom_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
@@ -83,6 +84,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(manufacturing_bp, url_prefix="/manufacturing")
     app.register_blueprint(inventory_bp, url_prefix="/inventory")
     app.register_blueprint(reports_bp, url_prefix="/reports")
+    app.register_blueprint(bom_bp, url_prefix="/bom")
 
     # ── Root redirect ─────────────────────────────────────────────────
     @app.route("/")
