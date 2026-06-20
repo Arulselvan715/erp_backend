@@ -100,6 +100,7 @@ def _seed_default_users(app: Flask) -> None:
 
 
 # ── Entry point ───────────────────────────────────────────────────────
+app = create_app()
+
 if __name__ == "__main__":
-    application = create_app()
-    application.run(debug=True, port=5000)
+    app.run(debug=True, port=5000)
