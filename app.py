@@ -33,6 +33,7 @@ def create_app(config_name: str | None = None) -> Flask:
     patch_render_template()
     
     db.init_app(app)
+    app.logger.info(f"Connecting to database: {app.config.get('SQLALCHEMY_DATABASE_URI')}")
 
     login_manager = LoginManager()
     login_manager.login_view = "auth.login"
