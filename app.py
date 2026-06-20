@@ -311,7 +311,7 @@ def _seed_default_data(app: Flask) -> None:
     copper = products_dict["RAW-COPPER-01"]
     steel = products_dict["RAW-STEEL-01"]
     
-    bom_sb = BillOfMaterials(product_id=smart_box.id, name="Smart Controller Assembly", version="1.0", output_qty=1.0)
+    bom_sb = BillOfMaterials(product_id=smart_box.id, name="Smart Controller Assembly", version="1.0", output_qty=1.0, status="approved")
     db.session.add(bom_sb)
     db.session.flush()
     
@@ -324,7 +324,7 @@ def _seed_default_data(app: Flask) -> None:
     # BoM for Industrial Bracket (FG-BRACKET-01)
     bracket = products_dict["FG-BRACKET-01"]
     
-    bom_ib = BillOfMaterials(product_id=bracket.id, name="Industrial Bracket Forming", version="1.0", output_qty=1.0)
+    bom_ib = BillOfMaterials(product_id=bracket.id, name="Industrial Bracket Forming", version="1.0", output_qty=1.0, status="approved")
     db.session.add(bom_ib)
     db.session.flush()
     

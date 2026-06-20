@@ -121,7 +121,8 @@ def adjust():
         if product_id is not None:
             product_id = int(product_id)
         if qty_change is not None:
-            qty_change = float(qty_change)
+            from decimal import Decimal
+            qty_change = Decimal(str(qty_change))
 
         if not product_id or qty_change is None:
             if request.is_json:

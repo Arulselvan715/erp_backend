@@ -81,7 +81,7 @@ def list_orders():
 def create():
     # Only show products that have a BoM
     products = (
-        Product.query.filter(Product.boms.any())
+        Product.query.filter(Product.boms.any(status="approved"))
         .order_by(Product.name)
         .all()
     )

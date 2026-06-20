@@ -83,7 +83,7 @@ def create():
                     price = product.cost_price or 0
                 line_total = qty * price
                 line = PurchaseOrderLine(
-                    purchase_order_id=po.id,
+                    order_id=po.id,
                     product_id=pid,
                     quantity=qty,
                     received_qty=0,
@@ -135,7 +135,7 @@ def create():
                 price = float(price) if price else product.cost_price or 0
                 line_total = qty * price
                 line = PurchaseOrderLine(
-                    purchase_order_id=po.id,
+                    order_id=po.id,
                     product_id=pid,
                     quantity=qty,
                     received_qty=0,
@@ -436,7 +436,7 @@ def create_po_from_request(req_id):
     line_total = float(req.quantity) * float(price)
     
     line = PurchaseOrderLine(
-        purchase_order_id=po.id,
+        order_id=po.id,
         product_id=product.id,
         quantity=req.quantity,
         received_qty=0,

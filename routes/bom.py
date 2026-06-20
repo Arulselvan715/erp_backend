@@ -24,6 +24,7 @@ def list_boms():
             "name": bom.name,
             "version": bom.version,
             "is_active": bom.is_active,
+            "status": bom.status,
             "components": [{
                 "id": line.id,
                 "component_id": line.component_id,
@@ -57,6 +58,7 @@ def get_bom(bom_id):
         "name": bom.name,
         "version": bom.version,
         "is_active": bom.is_active,
+        "status": bom.status,
         "components": [{
             "id": line.id,
             "component_id": line.component_id,
@@ -76,7 +78,7 @@ def get_bom(bom_id):
 
 @bom_bp.route("/", methods=["POST"])
 @login_required
-@role_required("admin", "manager")
+@role_required("admin", "manager", "production")
 def create_bom():
     """Create or update in-place a Bill of Materials."""
     data = request.get_json() or {}
@@ -89,6 +91,12 @@ def create_bom():
         
     product = Product.query.get_or_404(product_id)
     
+    # Determine default status based on user role (Admin/Manager auto-approves, Manufacturing User requests)
+    if current_user.role in ["Admin", "Inventory Manager"]:
+        status = "approved"
+    else:
+        status = "pending"
+        
     # Check if a BoM already exists for this product
     existing_bom = BillOfMaterials.query.filter_by(product_id=product_id).first()
     if existing_bom:
@@ -97,12 +105,14 @@ def create_bom():
         BomOperation.query.filter_by(bom_id=existing_bom.id).delete()
         bom = existing_bom
         bom.name = f"BoM - {product.name}"
+        bom.status = status
     else:
         bom = BillOfMaterials(
             product_id=product_id,
             name=f"BoM - {product.name}",
             version="1.0",
-            is_active=True
+            is_active=True,
+            status=status
         )
         db.session.add(bom)
         db.session.flush()
@@ -131,18 +141,61 @@ def create_bom():
         current_user.id, "CREATE" if not existing_bom else "UPDATE", "BillOfMaterials", bom.id,
         None,
         {"product_id": product_id, "components_count": len(components)},
-        f"Created/Updated Bill of Materials for product '{product.name}'"
+        f"Created/Updated Bill of Materials (status: {status}) for product '{product.name}'"
     )
     
     return jsonify({
-        "message": f"Bill of Materials for '{product.name}' saved.",
-        "id": bom.id
+        "message": f"Bill of Materials for '{product.name}' saved as {status}.",
+        "id": bom.id,
+        "status": bom.status
     }), 201
+
+
+@bom_bp.route("/<int:bom_id>/approve", methods=["POST"])
+@login_required
+@role_required("admin", "purchasing")
+def approve_bom(bom_id):
+    """Approve a pending Bill of Materials (Purchaser/Admin only)."""
+    bom = BillOfMaterials.query.get_or_404(bom_id)
+    bom.status = "approved"
+    db.session.commit()
+    
+    log_audit(
+        current_user.id, "APPROVE", "BillOfMaterials", bom.id,
+        None, None,
+        f"Approved Bill of Materials for product '{bom.product.name}'"
+    )
+    return jsonify({
+        "message": f"Bill of Materials for '{bom.product.name}' approved.",
+        "id": bom.id,
+        "status": bom.status
+    }), 200
+
+
+@bom_bp.route("/<int:bom_id>/reject", methods=["POST"])
+@login_required
+@role_required("admin", "purchasing")
+def reject_bom(bom_id):
+    """Reject/Disapprove a pending Bill of Materials (Purchaser/Admin only)."""
+    bom = BillOfMaterials.query.get_or_404(bom_id)
+    bom.status = "rejected"
+    db.session.commit()
+    
+    log_audit(
+        current_user.id, "REJECT", "BillOfMaterials", bom.id,
+        None, None,
+        f"Rejected Bill of Materials for product '{bom.product.name}'"
+    )
+    return jsonify({
+        "message": f"Bill of Materials for '{bom.product.name}' rejected.",
+        "id": bom.id,
+        "status": bom.status
+    }), 200
 
 
 @bom_bp.route("/<int:bom_id>", methods=["DELETE"])
 @login_required
-@role_required("admin", "manager")
+@role_required("admin", "manager", "production")
 def delete_bom(bom_id):
     """Delete a Bill of Materials (soft-deactivates if in use)."""
     bom = BillOfMaterials.query.get_or_404(bom_id)

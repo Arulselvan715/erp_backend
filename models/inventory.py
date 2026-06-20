@@ -68,47 +68,61 @@ class StockLedger(db.Model):
 # Helper function
 # ======================================================================
 def log_stock_movement(
-    product,
-    movement_type: str,
+    product_id: int,
     quantity,
     reference_type: str = "",
     reference_id: int | None = None,
     description: str = "",
     user_id: int | None = None,
 ):
-    """Create a stock ledger entry **and** update the product's quantities.
+    """Create a stock ledger entry.
 
-    Positive *quantity* = stock increase (receipt / produce / return).
-    Negative *quantity* = stock decrease (issue / consume).
-
-    For ``reservation`` and ``reservation_release`` the on-hand quantity is
-    not changed — only ``reserved_qty`` is adjusted.
-
-    The caller is responsible for calling ``db.session.commit()``.
+    The caller is responsible for modifying product quantities and calling ``db.session.commit()``.
     """
-    from .product import Product  # noqa: F811 – local import to avoid circular
+    from flask_login import current_user
+    from decimal import Decimal
+
+    # Determine movement type based on reference type and quantity
+    movement_type = "adjustment"
+    if reference_type == "PurchaseOrder":
+        movement_type = "purchase_receipt"
+    elif reference_type == "SalesOrder":
+        if float(quantity or 0) == 0:
+            if "Released" in description or "cancel" in description.lower():
+                movement_type = "reservation_release"
+            else:
+                movement_type = "reservation"
+        else:
+            movement_type = "sales_issue"
+    elif reference_type == "ManufacturingOrder":
+        if float(quantity or 0) == 0:
+            if "Released" in description or "cancel" in description.lower():
+                movement_type = "reservation_release"
+            else:
+                movement_type = "reservation"
+        elif float(quantity or 0) < 0:
+            movement_type = "manufacturing_consume"
+        else:
+            movement_type = "manufacturing_produce"
+    elif reference_type == "ManualAdjustment":
+        movement_type = "adjustment"
+
+    # Get current user ID if not provided
+    if user_id is None:
+        if current_user and current_user.is_authenticated:
+            user_id = current_user.id
+        else:
+            user_id = 1
 
     entry = StockLedger(
-        product_id=product.id,
+        product_id=product_id,
         movement_type=movement_type,
-        quantity=quantity,
+        quantity=Decimal(str(quantity)) if quantity is not None else Decimal("0.00"),
         reference_type=reference_type,
         reference_id=reference_id,
         description=description,
         user_id=user_id,
     )
     db.session.add(entry)
-
-    # Update product quantities
-    if movement_type == "reservation":
-        # Reserve stock: increase reserved_qty (quantity should be positive)
-        product.reserved_qty = (product.reserved_qty or 0) + abs(quantity)
-    elif movement_type == "reservation_release":
-        # Release reservation: decrease reserved_qty
-        product.reserved_qty = max(0, (product.reserved_qty or 0) - abs(quantity))
-    else:
-        # All other movements adjust on_hand_qty directly
-        product.on_hand_qty = (product.on_hand_qty or 0) + quantity
-
-    db.session.add(product)
     return entry
+

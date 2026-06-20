@@ -63,7 +63,7 @@ class Product(db.Model):
     # ------------------------------------------------------------------
     @property
     def bom_id(self):
-        bom = self.boms.first()
+        bom = self.boms.filter_by(status="approved").first()
         return bom.id if bom else None
 
     @bom_id.setter

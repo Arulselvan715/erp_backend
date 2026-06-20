@@ -20,6 +20,7 @@ class BillOfMaterials(db.Model):
     name = db.Column(db.String(200), nullable=False)
     version = db.Column(db.String(20), nullable=False, default="1.0")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    status = db.Column(db.String(20), nullable=False, default="pending")
     output_qty = db.Column(db.Numeric(12, 2), nullable=False, default=1.00)
     notes = db.Column(db.Text, nullable=False, default="")
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

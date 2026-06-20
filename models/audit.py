@@ -21,7 +21,7 @@ class AuditLog(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id"), nullable=True, index=True
     )
-    ip_address = db.Column(db.String(45), nullable=False, default="")
+    ip_address = db.Column(db.String(500), nullable=False, default="")
     user_agent = db.Column(db.String(300), nullable=False, default="")
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
@@ -71,12 +71,13 @@ def log_audit(
     AuditLog
         The newly created (but uncommitted) audit log entry.
     """
+    from routes.utils import serialize
     entry = AuditLog(
         table_name=table_name,
         record_id=record_id,
         action=action,
-        old_values=old_values,
-        new_values=new_values,
+        old_values=serialize(old_values),
+        new_values=serialize(new_values),
         user_id=user_id,
         ip_address=details,
         user_agent="",
