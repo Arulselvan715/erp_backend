@@ -34,7 +34,30 @@ CREATE INDEX ix_users_username ON users (username);
 CREATE INDEX ix_users_role     ON users (role);
 
 -- ----------------------------------------------------------
--- 2. PRODUCTS
+-- 2. VENDORS
+-- ----------------------------------------------------------
+CREATE TABLE vendors (
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(200)   NOT NULL,
+    email           VARCHAR(120)   NOT NULL DEFAULT '',
+    phone           VARCHAR(30)    NOT NULL DEFAULT '',
+    address_line1   VARCHAR(200)   NOT NULL DEFAULT '',
+    address_line2   VARCHAR(200)   NOT NULL DEFAULT '',
+    city            VARCHAR(100)   NOT NULL DEFAULT '',
+    state           VARCHAR(100)   NOT NULL DEFAULT '',
+    postal_code     VARCHAR(20)    NOT NULL DEFAULT '',
+    country         VARCHAR(100)   NOT NULL DEFAULT '',
+    tax_id          VARCHAR(50)    NOT NULL DEFAULT '',
+    is_active       BOOLEAN        NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX ix_vendors_name  ON vendors (name);
+CREATE INDEX ix_vendors_email ON vendors (email);
+
+-- ----------------------------------------------------------
+-- 3. PRODUCTS
 -- ----------------------------------------------------------
 CREATE TABLE products (
     id                  SERIAL PRIMARY KEY,
@@ -51,6 +74,7 @@ CREATE TABLE products (
     procure_on_demand   BOOLEAN        NOT NULL DEFAULT FALSE,
     procurement_type    VARCHAR(15)    NOT NULL DEFAULT 'purchase'
                             CHECK (procurement_type IN ('purchase', 'manufacturing')),
+    vendor_id           INTEGER        REFERENCES vendors(id) ON DELETE SET NULL,
     is_active           BOOLEAN        NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -82,28 +106,7 @@ CREATE TABLE customers (
 CREATE INDEX ix_customers_name  ON customers (name);
 CREATE INDEX ix_customers_email ON customers (email);
 
--- ----------------------------------------------------------
--- 4. VENDORS
--- ----------------------------------------------------------
-CREATE TABLE vendors (
-    id              SERIAL PRIMARY KEY,
-    name            VARCHAR(200)   NOT NULL,
-    email           VARCHAR(120)   NOT NULL DEFAULT '',
-    phone           VARCHAR(30)    NOT NULL DEFAULT '',
-    address_line1   VARCHAR(200)   NOT NULL DEFAULT '',
-    address_line2   VARCHAR(200)   NOT NULL DEFAULT '',
-    city            VARCHAR(100)   NOT NULL DEFAULT '',
-    state           VARCHAR(100)   NOT NULL DEFAULT '',
-    postal_code     VARCHAR(20)    NOT NULL DEFAULT '',
-    country         VARCHAR(100)   NOT NULL DEFAULT '',
-    tax_id          VARCHAR(50)    NOT NULL DEFAULT '',
-    is_active       BOOLEAN        NOT NULL DEFAULT TRUE,
-    created_at       TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
-CREATE INDEX ix_vendors_name  ON vendors (name);
-CREATE INDEX ix_vendors_email ON vendors (email);
 
 -- ----------------------------------------------------------
 -- 5. SALES ORDERS

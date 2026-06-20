@@ -83,10 +83,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
 
 def _seed_default_users(app: Flask) -> None:
-    """Insert default users if the users table is empty."""
-    if User.query.first() is not None:
-        return
-
+    """Insert default users if they do not exist."""
     default_users = [
         ("admin", "admin@minierp.local", "admin123", "Admin"),
         ("sales", "sales@minierp.local", "sales123", "Sales User"),
@@ -94,15 +91,20 @@ def _seed_default_users(app: Flask) -> None:
         ("manufacturing", "mfg@minierp.local", "mfg123", "Manufacturing User"),
         ("inventory", "inv@minierp.local", "inv123", "Inventory Manager"),
         ("owner", "owner@minierp.local", "owner123", "Business Owner"),
+        ("devanathan", "msdevanathan992006@gmail.com", "9906", "Admin"),
     ]
 
+    seeded = 0
     for username, email, password, role in default_users:
-        user = User(username=username, email=email, role=role)
-        user.set_password(password)
-        db.session.add(user)
+        if not User.query.filter_by(email=email).first():
+            user = User(username=username, email=email, role=role)
+            user.set_password(password)
+            db.session.add(user)
+            seeded += 1
 
-    db.session.commit()
-    app.logger.info("Seeded %d default users.", len(default_users))
+    if seeded > 0:
+        db.session.commit()
+        app.logger.info("Seeded %d default users.", seeded)
 
 
 # ── Entry point ───────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 """Authentication routes — login / logout / session management."""
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import current_user, login_required, login_user, logout_user
 
 from models import db, User
@@ -16,9 +16,47 @@ auth_bp = Blueprint("auth", __name__)
 def login():
     """Show the login form (GET) or authenticate the user (POST)."""
     if current_user.is_authenticated:
+        if request.is_json or request.headers.get("Accept") == "application/json":
+            return jsonify({
+                "access_token": "dummy-session-token",
+                "user": {
+                    "id": current_user.id,
+                    "username": current_user.username,
+                    "email": current_user.email,
+                    "role": current_user.role
+                }
+            })
         return redirect(url_for("dashboard.index"))
 
     if request.method == "POST":
+        # Check for JSON API login request
+        if request.is_json or request.headers.get("Accept") == "application/json":
+            data = request.json or {}
+            email = data.get("email", "").strip()
+            password = data.get("password", "")
+
+            if not email or not password:
+                return jsonify({"error": "Email and password are required."}), 400
+
+            user = User.query.filter_by(email=email).first()
+
+            if user is None or not user.check_password(password):
+                return jsonify({"error": "Invalid email or password."}), 401
+
+            login_user(user, remember=True)
+            log_audit(user.id, "LOGIN", "User", user.id, None, None, f"User '{user.username}' logged in via API")
+
+            return jsonify({
+                "access_token": "dummy-session-token",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role
+                }
+            })
+
+        # Fallback to standard form-data login
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         remember = bool(request.form.get("remember"))
