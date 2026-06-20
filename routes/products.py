@@ -37,7 +37,7 @@ def list_products():
 # ------------------------------------------------------------------
 @products_bp.route("/create", methods=["GET", "POST"])
 @login_required
-@role_required("admin", "manager")
+@role_required("admin", "manager", "sales")
 def create():
     vendors = Vendor.query.order_by(Vendor.name).all()
     data = request.get_json() if request.is_json else request.form
@@ -136,7 +136,7 @@ def view(product_id):
 # ------------------------------------------------------------------
 @products_bp.route("/<int:product_id>/edit", methods=["GET", "POST"])
 @login_required
-@role_required("admin", "manager")
+@role_required("admin", "manager", "sales")
 def edit(product_id):
     product = Product.query.get_or_404(product_id)
     vendors = Vendor.query.order_by(Vendor.name).all()
@@ -204,7 +204,7 @@ def edit(product_id):
 # ------------------------------------------------------------------
 @products_bp.route("/<int:product_id>/delete", methods=["POST", "DELETE"])
 @login_required
-@role_required("admin", "manager")
+@role_required("admin", "manager", "sales")
 def delete(product_id):
     product = Product.query.get_or_404(product_id)
     name = product.name
