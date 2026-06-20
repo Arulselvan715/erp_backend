@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ product.name }} — Mini ERP{% endblock %}
+{% block page_title %}Product Details{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-header">
+    <div style="display:flex; align-items:center; gap: 1rem;">
+      <div class="stat-icon purple" style="width: 48px; height: 48px; font-size: 1.5rem;">📦</div>
+      <div>
+        <h2 style="margin:0;">{{ product.name }}</h2>
+        <span class="text-muted">SKU: {{ product.sku }}</span>
+      </div>
+    </div>
+    <div class="btn-group">
+      <a href="{{ url_for('products.edit', product_id=product.id) }}" class="btn btn-secondary">✏️ Edit</a>
+      <a href="{{ url_for('products.configure_procurement', product_id=product.id) }}" class="btn btn-secondary">⚙️ Procurement Setup</a>
+      <a href="{{ url_for('products.configure_bom', product_id=product.id) }}" class="btn btn-secondary">📋 Configure BoM</a>
+    </div>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <div class="grid-2">
+      <div>
+        <h4 class="text-muted" style="margin-bottom: 1rem;">Pricing</h4>
+        <p style="margin: 0.5rem 0;"><strong>Sales Price:</strong> ${{ "%.2f"|format(product.sales_price|default(0)) }}</p>
+        <p style="margin: 0.5rem 0;"><strong>Cost Price:</strong> ${{ "%.2f"|format(product.cost_price|default(0)) }}</p>
+        <p style="margin: 0.5rem 0;"><strong>Margin:</strong> ${{ "%.2f"|format((product.sales_price|default(0)) - (product.cost_price|default(0))) }}</p>
+      </div>
+      <div>
+        <h4 class="text-muted" style="margin-bottom: 1rem;">Inventory Levels</h4>
+        <p style="margin: 0.5rem 0;"><strong>On Hand:</strong> {{ product.on_hand_qty }}</p>
+        <p style="margin: 0.5rem 0;"><strong>Reserved:</strong> {{ product.reserved_qty }}</p>
+        <p style="margin: 0.5rem 0; font-size: 1.1em;">
+          <strong>Free to Use:</strong> 
+          <span style="color: {{ 'var(--danger)' if product.free_to_use_qty < 5 else 'var(--success)' }}; font-weight: bold;">
+            {{ product.free_to_use_qty }}
+          </span>
+        </p>
+      </div>
+    </div>
+    
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border-color);">
+    
+    <div class="grid-2">
+      <div>
+        <h4 class="text-muted" style="margin-bottom: 1rem;">Procurement Strategy</h4>
+        <p style="margin: 0.5rem 0;">
+          <strong>Type:</strong> 
+          <span class="badge {{ 'badge-blue' if product.procurement_type == 'buy' else 'badge-purple' }}">
+            {{ product.procurement_type|capitalize }}
+          </span>
+        </p>
+        <p style="margin: 0.5rem 0;">
+          <strong>Procure on Demand (MTO):</strong> 
+          {% if product.procure_on_demand %}
+            <span class="badge" style="background:var(--success-bg);color:var(--success);">Yes ⚡</span>
+          {% else %}
+            <span class="badge">No (MTS)</span>
+          {% endif %}
+        </p>
+        <p style="margin: 0.5rem 0;">
+          <strong>Default Vendor:</strong> 
+          {% if product.vendor %}
+            <a href="{{ url_for('vendors.view', vendor_id=product.vendor.id) }}">{{ product.vendor.name }}</a>
+          {% else %}
+            —
+          {% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if bom %}
+<div class="card mt-3">
+  <div class="card-header">
+    <h3>Bill of Materials: {{ bom.name }}</h3>
+    <a href="{{ url_for('manufacturing.view_bom', bom_id=bom.id) }}" class="btn btn-sm btn-ghost">View Full BoM →</a>
+  </div>
+  
+  <div class="grid-2" style="padding: 1.5rem; gap: 2rem;">
+    <div>
+      <h4 class="text-muted mb-3">Components</h4>
+      <div class="table-wrapper" style="border:none">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Quantity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in bom.bom_lines %}
+            <tr>
+              <td><a href="{{ url_for('products.view', product_id=line.component.id) }}">{{ line.component.name }}</a></td>
+              <td>{{ line.quantity }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div>
+      <h4 class="text-muted mb-3">Operations</h4>
+      <div class="table-wrapper" style="border:none">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Seq</th>
+              <th>Operation</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for op in bom.bom_operations %}
+            <tr>
+              <td>{{ op.sequence }}</td>
+              <td>{{ op.operation_name }}</td>
+              <td>{{ op.duration_mins }} mins</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

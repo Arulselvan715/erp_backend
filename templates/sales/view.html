@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Order #{{ order.id }} — Mini ERP{% endblock %}
+{% block page_title %}Sales Order #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 style="margin:0;">Order Details</h3>
+      <span class="badge badge-{{ order.status|lower|replace(' ', '-') }}" style="font-size: 1em;">{{ order.status }}</span>
+    </div>
+    <div style="padding: 1.5rem;">
+      <p style="margin: 0.5rem 0;"><strong>Customer:</strong> {% if order.customer %}<a href="{{ url_for('customers.view', customer_id=order.customer.id) }}">{{ order.customer.name }}</a>{% else %}—{% endif %}</p>
+      <p style="margin: 0.5rem 0;"><strong>Total Amount:</strong> <span style="font-size: 1.2em; font-weight: bold; color: var(--primary);">${{ "%.2f"|format(order.total_amount|default(0)) }}</span></p>
+      <p style="margin: 0.5rem 0;" class="text-muted"><strong>Created:</strong> {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+      <p style="margin: 0.5rem 0;" class="text-muted"><strong>Updated:</strong> {{ order.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+  </div>
+
+  <div class="card mb-3" style="background: var(--surface-color); display: flex; flex-direction: column; justify-content: center; padding: 2rem; align-items: center; border: 1px dashed var(--border-color);">
+    <h3 style="margin-bottom: 1.5rem;">Order Actions</h3>
+    <div class="btn-group" style="flex-wrap: wrap; justify-content: center;">
+      {% if order.status == 'draft' %}
+        <form method="POST" action="{{ url_for('sales.confirm', order_id=order.id) }}" onsubmit="return confirm('Confirm order? This will reserve stock and may trigger automatic procurement.');">
+          <button type="submit" class="btn btn-success" style="background: var(--success); color: white;">✔️ Confirm Order</button>
+        </form>
+        <form method="POST" action="{{ url_for('sales.cancel', order_id=order.id) }}" onsubmit="return confirm('Cancel this draft order?');">
+          <button type="submit" class="btn btn-danger">✖ Cancel</button>
+        </form>
+      {% elif order.status in ['confirmed', 'partially delivered'] %}
+        <form id="deliver-form" method="POST" action="{{ url_for('sales.deliver', order_id=order.id) }}" style="display:none;"></form>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('deliver-form-wrapper').style.display = 'block'; this.style.display = 'none';">📦 Deliver Products</button>
+        <form method="POST" action="{{ url_for('sales.cancel', order_id=order.id) }}" onsubmit="return confirm('Cancel order? This will release reserved stock.');">
+          <button type="submit" class="btn btn-danger">✖ Cancel Order</button>
+        </form>
+      {% elif order.status == 'fully delivered' %}
+        <div class="empty-state" style="padding: 1rem;">
+          <div class="empty-icon" style="font-size: 2rem;">✅</div>
+          <p style="margin: 0;">Order Complete</p>
+        </div>
+      {% elif order.status == 'cancelled' %}
+        <div class="empty-state" style="padding: 1rem;">
+          <div class="empty-icon" style="font-size: 2rem; color: var(--danger);">✖</div>
+          <p style="margin: 0;">Order Cancelled</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3" id="deliver-form-wrapper" style="display: none; border-color: var(--primary);">
+  <div class="card-header" style="background: rgba(var(--primary-rgb), 0.1);">
+    <h3 style="margin:0; color: var(--primary);">Process Delivery</h3>
+  </div>
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('sales.deliver', order_id=order.id) }}">
+      <div class="table-wrapper" style="border:none; margin-bottom: 1.5rem;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Ordered</th>
+              <th>Already Delivered</th>
+              <th>Remaining</th>
+              <th style="width: 150px;">Deliver Now</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in order.lines %}
+              {% set remaining = line.quantity - line.delivered_qty %}
+              <tr>
+                <td>{{ line.product.name }}</td>
+                <td>{{ line.quantity }}</td>
+                <td class="text-muted">{{ line.delivered_qty }}</td>
+                <td><span style="font-weight: bold; color: {{ 'var(--danger)' if remaining > 0 else 'var(--success)' }};">{{ remaining }}</span></td>
+                <td>
+                  {% if remaining > 0 %}
+                    <input type="number" name="deliver_qty_{{ line.id }}" class="form-control" step="0.01" min="0" max="{{ remaining }}" value="{{ remaining }}">
+                  {% else %}
+                    <span class="badge badge-success">Done</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="btn-group">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('deliver-form-wrapper').style.display = 'none'; document.querySelector('.btn-primary').style.display = 'inline-flex';">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Delivery</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3 style="margin:0;">Order Lines</h3>
+  </div>
+  <div class="table-wrapper" style="border:none;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th style="text-align: right;">Quantity</th>
+          <th style="text-align: right;">Delivered</th>
+          <th style="text-align: right;">Unit Price</th>
+          <th style="text-align: right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in order.lines %}
+        <tr>
+          <td><a href="{{ url_for('products.view', product_id=line.product.id) }}">{{ line.product.name }}</a></td>
+          <td style="text-align: right;">{{ line.quantity }}</td>
+          <td style="text-align: right; color: {{ 'var(--success)' if line.delivered_qty >= line.quantity else 'inherit' }};">{{ line.delivered_qty }}</td>
+          <td style="text-align: right;">${{ "%.2f"|format(line.unit_price|default(0)) }}</td>
+          <td style="text-align: right; font-weight: 500;">${{ "%.2f"|format(line.line_total|default(0)) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align: right; font-weight: bold;">Grand Total:</td>
+          <td style="text-align: right; font-weight: bold; font-size: 1.1em; color: var(--primary);">${{ "%.2f"|format(order.total_amount|default(0)) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top: 1rem;">
+  <a href="{{ url_for('sales.list_orders') }}" class="btn btn-secondary">← Back to Orders</a>
+</div>
+{% endblock %}

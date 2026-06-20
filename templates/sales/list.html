@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Sales Orders — Mini ERP{% endblock %}
+{% block page_title %}Sales Orders{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div style="padding: 1rem; display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border-color); overflow-x: auto;">
+    <a href="{{ url_for('sales.list_orders') }}" class="badge {{ 'badge-blue' if not status_filter else '' }}" style="text-decoration:none; padding: 0.5rem 1rem;">All</a>
+    <a href="{{ url_for('sales.list_orders', status='draft') }}" class="badge badge-draft {{ 'badge-blue' if status_filter == 'draft' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Draft</a>
+    <a href="{{ url_for('sales.list_orders', status='confirmed') }}" class="badge badge-confirmed {{ 'badge-blue' if status_filter == 'confirmed' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Confirmed</a>
+    <a href="{{ url_for('sales.list_orders', status='partially delivered') }}" class="badge badge-partially-delivered {{ 'badge-blue' if status_filter == 'partially delivered' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Partially Delivered</a>
+    <a href="{{ url_for('sales.list_orders', status='fully delivered') }}" class="badge badge-fully-delivered {{ 'badge-blue' if status_filter == 'fully delivered' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Fully Delivered</a>
+    <a href="{{ url_for('sales.list_orders', status='cancelled') }}" class="badge badge-cancelled {{ 'badge-blue' if status_filter == 'cancelled' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Cancelled</a>
+  </div>
+
+  <div class="card-header" style="border-bottom: none;">
+    <h3 style="margin: 0;"></h3>
+    <a href="{{ url_for('sales.create') }}" class="btn btn-primary">➕ Create Order</a>
+  </div>
+
+  {% if orders %}
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Customer</th>
+          <th>Status</th>
+          <th>Total</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td><a href="{{ url_for('sales.view', order_id=o.id) }}" style="font-weight: 500; font-family: monospace; font-size: 1.1em;">{{ o.order_number }}</a></td>
+          <td>{{ o.customer.name if o.customer else '—' }}</td>
+          <td>
+            <span class="badge badge-{{ o.status|lower|replace(' ', '-') }}">{{ o.status }}</span>
+          </td>
+          <td>${{ "%.2f"|format(o.total_amount|default(0)) }}</td>
+          <td class="text-muted">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🛒</div>
+    <p>No sales orders found.</p>
+    <a href="{{ url_for('sales.create') }}" class="btn btn-primary mt-3">Create your first order</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

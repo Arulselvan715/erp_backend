@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Procurement Strategy — {{ product.name }} — Mini ERP{% endblock %}
+{% block page_title %}Procurement Strategy — {{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+  <div class="card-header">
+    <h3>Configure Procurement</h3>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('products.configure_procurement', product_id=product.id) }}">
+      
+      <div class="form-group mb-3">
+        <label class="form-label" for="procurement_type">Procurement Type</label>
+        <p class="text-muted" style="margin-top:0; margin-bottom: 0.5rem; font-size: 0.85em;">How do you replenish stock for this product?</p>
+        <select id="procurement_type" name="procurement_type" class="form-control" style="font-weight: bold;">
+          <option value="buy" {% if product.procurement_type == 'buy' %}selected{% endif %}>Buy (Purchase from Vendor)</option>
+          <option value="manufacture" {% if product.procurement_type == 'manufacture' %}selected{% endif %}>Manufacture (Produce in-house)</option>
+        </select>
+      </div>
+
+      <div class="form-group mb-3" style="background: var(--bg-color); padding: 1rem; border-radius: 8px;">
+        <label style="display:flex; align-items:flex-start; gap: 0.75rem; cursor: pointer; margin: 0;">
+          <input type="checkbox" name="procure_on_demand" value="1" {% if product.procure_on_demand %}checked{% endif %} style="width:20px; height:20px; margin-top: 2px;">
+          <div>
+            <strong style="display:block; margin-bottom: 0.25rem;">Procure on Demand (MTO)</strong>
+            <span class="text-muted" style="font-size: 0.9em; line-height: 1.4;">
+              If enabled (Make To Order), confirming a Sales Order will automatically trigger a Purchase Order or Manufacturing Order if there is insufficient free-to-use stock. If disabled (Make To Stock), you must replenish inventory manually.
+            </span>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="vendor_id">Default Vendor (Optional)</label>
+        <p class="text-muted" style="margin-top:0; margin-bottom: 0.5rem; font-size: 0.85em;">Used when automatically creating Purchase Orders.</p>
+        <select id="vendor_id" name="vendor_id" class="form-control">
+          <option value="">-- None --</option>
+          {% for v in vendors %}
+          <option value="{{ v.id }}" {% if product.vendor_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="btn-group" style="margin-top: 2rem;">
+        <a href="{{ url_for('products.view', product_id=product.id) }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Strategy</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

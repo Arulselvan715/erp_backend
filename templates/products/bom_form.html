@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+
+{% block title %}Configure BoM — {{ product.name }} — Mini ERP{% endblock %}
+{% block page_title %}Configure BoM — {{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 0 auto;">
+  <div class="card-header">
+    <h3>Bill of Materials for {{ product.name }}</h3>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('products.configure_bom', product_id=product.id) }}">
+      
+      <div class="form-group" style="max-width: 400px;">
+        <label class="form-label" for="bom_name">BoM Name *</label>
+        <input type="text" id="bom_name" name="bom_name" class="form-control" value="{{ bom.name if bom else ('BoM - ' ~ product.name) }}" required>
+      </div>
+
+      <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border-color);">
+
+      <!-- Components Section -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+        <h4 style="margin:0;">Components (Raw Materials)</h4>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="addComponentRow()">➕ Add Component</button>
+      </div>
+      
+      <div class="table-wrapper" style="border:none; margin-bottom: 2rem;">
+        <table class="table" id="components-table">
+          <thead>
+            <tr>
+              <th style="width: 60%;">Component Product *</th>
+              <th style="width: 30%;">Quantity *</th>
+              <th style="width: 10%;"></th>
+            </tr>
+          </thead>
+          <tbody id="components-body">
+            {% if bom and bom.bom_lines %}
+              {% for line in bom.bom_lines %}
+              <tr>
+                <td>
+                  <select name="component_id" class="form-control" required>
+                    <option value="">-- Select Component --</option>
+                    {% for c in components %}
+                    <option value="{{ c.id }}" {% if c.id == line.component_product_id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td>
+                  <input type="number" name="component_qty" class="form-control" step="0.01" value="{{ line.quantity }}" required>
+                </td>
+                <td style="text-align: right;">
+                  <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="this.closest('tr').remove()">✖</button>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td>
+                  <select name="component_id" class="form-control" required>
+                    <option value="">-- Select Component --</option>
+                    {% for c in components %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td>
+                  <input type="number" name="component_qty" class="form-control" step="0.01" value="1.0" required>
+                </td>
+                <td style="text-align: right;">
+                  <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="this.closest('tr').remove()">✖</button>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border-color);">
+
+      <!-- Operations Section -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+        <h4 style="margin:0;">Operations (Routing)</h4>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="addOperationRow()">➕ Add Operation</button>
+      </div>
+      
+      <div class="table-wrapper" style="border:none;">
+        <table class="table" id="operations-table">
+          <thead>
+            <tr>
+              <th style="width: 15%;">Sequence *</th>
+              <th style="width: 50%;">Operation Name *</th>
+              <th style="width: 25%;">Duration (mins) *</th>
+              <th style="width: 10%;"></th>
+            </tr>
+          </thead>
+          <tbody id="operations-body">
+            {% if bom and bom.bom_operations %}
+              {% for op in bom.bom_operations|sort(attribute='sequence') %}
+              <tr>
+                <td>
+                  <input type="number" name="operation_sequence" class="form-control" value="{{ op.sequence }}" required>
+                </td>
+                <td>
+                  <input type="text" name="operation_name" class="form-control" value="{{ op.operation_name }}" required>
+                </td>
+                <td>
+                  <input type="number" name="operation_duration" class="form-control" step="0.1" value="{{ op.duration_mins }}" required>
+                </td>
+                <td style="text-align: right;">
+                  <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="this.closest('tr').remove()">✖</button>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td>
+                  <input type="number" name="operation_sequence" class="form-control" value="10" required>
+                </td>
+                <td>
+                  <input type="text" name="operation_name" class="form-control" placeholder="e.g. Assembly" required>
+                </td>
+                <td>
+                  <input type="number" name="operation_duration" class="form-control" step="0.1" value="60" required>
+                </td>
+                <td style="text-align: right;">
+                  <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="this.closest('tr').remove()">✖</button>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="btn-group" style="margin-top: 2.5rem;">
+        <a href="{{ url_for('products.view', product_id=product.id) }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save BoM Configuration</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function addComponentRow() {
+  const tbody = document.getElementById('components-body');
+  const template = tbody.querySelector('tr');
+  if (template) {
+    const clone = template.cloneNode(true);
+    clone.querySelector('select').value = '';
+    clone.querySelector('input[type="number"]').value = '1.0';
+    tbody.appendChild(clone);
+  } else {
+    // Fallback if table is somehow empty
+    const html = `
+      <tr>
+        <td>
+          <select name="component_id" class="form-control" required>
+            <option value="">-- Select Component --</option>
+            {% for c in components %}
+            <option value="{{ c.id }}">{{ c.name|replace("'", "\\'") }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <input type="number" name="component_qty" class="form-control" step="0.01" value="1.0" required>
+        </td>
+        <td style="text-align: right;">
+          <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="this.closest('tr').remove()">✖</button>
+        </td>
+      </tr>
+    `;
+    tbody.insertAdjacentHTML('beforeend', html);
+  }
+}
+
+function addOperationRow() {
+  const tbody = document.getElementById('operations-body');
+  const trs = tbody.querySelectorAll('tr');
+  let nextSeq = 10;
+  if (trs.length > 0) {
+    const lastSeqInput = trs[trs.length - 1].querySelector('input[name="operation_sequence"]');
+    if (lastSeqInput) nextSeq = parseInt(lastSeqInput.value) + 10;
+  }
+  
+  const template = trs.length > 0 ? trs[0] : null;
+  if (template) {
+    const clone = template.cloneNode(true);
+    clone.querySelector('input[name="operation_sequence"]').value = nextSeq;
+    clone.querySelector('input[name="operation_name"]').value = '';
+    clone.querySelector('input[name="operation_duration"]').value = '60';
+    tbody.appendChild(clone);
+  } else {
+    const html = `
+      <tr>
+        <td>
+          <input type="number" name="operation_sequence" class="form-control" value="${nextSeq}" required>
+        </td>
+        <td>
+          <input type="text" name="operation_name" class="form-control" placeholder="e.g. Painting" required>
+        </td>
+        <td>
+          <input type="number" name="operation_duration" class="form-control" step="0.1" value="60" required>
+        </td>
+        <td style="text-align: right;">
+          <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="this.closest('tr').remove()">✖</button>
+        </td>
+      </tr>
+    `;
+    tbody.insertAdjacentHTML('beforeend', html);
+  }
+}
+</script>
+{% endblock %}

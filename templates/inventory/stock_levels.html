@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Inventory — Mini ERP{% endblock %}
+{% block page_title %}Inventory{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-header">
+    <form method="GET" action="{{ url_for('inventory.stock_levels') }}" style="display:flex; gap:1rem;">
+      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search products...">
+      <button type="submit" class="btn btn-secondary">🔍 Search</button>
+    </form>
+    <div class="btn-group">
+      <a href="{{ url_for('inventory.ledger') }}" class="btn btn-secondary">📋 Stock Ledger</a>
+      <a href="{{ url_for('inventory.adjust') }}" class="btn btn-primary">⚖️ Manual Adjustment</a>
+    </div>
+  </div>
+
+  {% if products %}
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>SKU</th>
+          <th style="text-align: right;">On Hand</th>
+          <th style="text-align: right;">Reserved</th>
+          <th style="text-align: right;">Free to Use</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td><a href="{{ url_for('inventory.product_detail', product_id=p.id) }}" style="font-weight: 500;">{{ p.name }}</a></td>
+          <td class="text-muted">{{ p.sku }}</td>
+          <td style="text-align: right;">{{ p.on_hand_qty }}</td>
+          <td style="text-align: right; color: var(--warning);">{{ p.reserved_qty }}</td>
+          <td style="text-align: right;">
+            {% set fqty = p.free_to_use_qty %}
+            {% if fqty < 5 %}
+              <span class="badge" style="background:var(--danger-bg);color:var(--danger);">{{ fqty }}</span>
+            {% elif fqty < 10 %}
+              <span class="badge" style="background:var(--warning-bg);color:var(--warning);">{{ fqty }}</span>
+            {% else %}
+              <span class="badge" style="background:var(--success-bg);color:var(--success);">{{ fqty }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🏬</div>
+    <p>No products found.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'Edit' if product else 'Add' }} Product — Mini ERP{% endblock %}
+{% block page_title %}{{ 'Edit Product' if product else 'Add New Product' }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+  <div class="card-header">
+    <h3>{{ 'Edit Product Details' if product else 'Product Information' }}</h3>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('products.edit', product_id=product.id) if product else url_for('products.create') }}">
+      
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="name">Product Name *</label>
+          <input type="text" id="name" name="name" class="form-control" value="{{ product.name if product else '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sku">SKU *</label>
+          <input type="text" id="sku" name="sku" class="form-control" value="{{ product.sku if product else '' }}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sales_price">Sales Price</label>
+          <input type="number" id="sales_price" name="sales_price" class="form-control" step="0.01" value="{{ product.sales_price if product else '0.00' }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cost_price">Cost Price</label>
+          <input type="number" id="cost_price" name="cost_price" class="form-control" step="0.01" value="{{ product.cost_price if product else '0.00' }}">
+        </div>
+      </div>
+
+      {% if not product %}
+      <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+      <h4 style="margin-bottom: 1rem;">Initial Inventory</h4>
+      
+      <div class="form-group" style="max-width: 50%;">
+        <label class="form-label" for="on_hand_qty">Initial On-Hand Quantity</label>
+        <input type="number" id="on_hand_qty" name="on_hand_qty" class="form-control" step="0.01" value="0">
+      </div>
+      {% endif %}
+
+      <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+      <h4 style="margin-bottom: 1rem;">Procurement Strategy</h4>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="procurement_type">Procurement Type</label>
+          <select id="procurement_type" name="procurement_type" class="form-control">
+            <option value="buy" {% if product and product.procurement_type == 'buy' %}selected{% endif %}>Buy (Purchase)</option>
+            <option value="manufacture" {% if product and product.procurement_type == 'manufacture' %}selected{% endif %}>Manufacture (Produce)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="vendor_id">Default Vendor</label>
+          <select id="vendor_id" name="vendor_id" class="form-control">
+            <option value="">-- None --</option>
+            {% for v in vendors %}
+            <option value="{{ v.id }}" {% if product and product.vendor_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top: 1rem;">
+        <label style="display:flex; align-items:center; gap: 0.5rem; cursor: pointer;">
+          <input type="checkbox" name="procure_on_demand" value="1" {% if product and product.procure_on_demand %}checked{% endif %} style="width:18px; height:18px;">
+          <strong>Procure on Demand (MTO)</strong>
+          <span class="text-muted" style="font-size: 0.85em; margin-left: 0.5rem;">If checked, shortage during sales order confirmation will trigger auto-procurement.</span>
+        </label>
+      </div>
+
+      <div class="btn-group" style="margin-top: 2rem;">
+        <a href="{{ url_for('products.list_products') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Product</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

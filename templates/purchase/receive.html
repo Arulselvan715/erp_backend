@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Receive — PO #{{ order.id }} — Mini ERP{% endblock %}
+{% block page_title %}Receive Goods — PO #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 0 auto;">
+  <div class="card-header">
+    <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+      <h3 style="margin:0;">Receive Goods from {{ order.vendor.name if order.vendor else 'Vendor' }}</h3>
+      <span class="badge badge-{{ order.status|lower|replace(' ', '-') }}">{{ order.status }}</span>
+    </div>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('purchase.receive', order_id=order.id) }}">
+      
+      <div class="table-wrapper" style="border:none; margin-bottom: 2rem;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width: 40%;">Product</th>
+              <th style="width: 15%; text-align: center;">Ordered</th>
+              <th style="width: 15%; text-align: center;">Already Received</th>
+              <th style="width: 15%; text-align: center;">Remaining</th>
+              <th style="width: 15%;">Receive Now</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in order.lines %}
+              {% set remaining = line.quantity - line.received_qty %}
+              <tr>
+                <td>{{ line.product.name }}</td>
+                <td style="text-align: center;">{{ line.quantity }}</td>
+                <td style="text-align: center;" class="text-muted">{{ line.received_qty }}</td>
+                <td style="text-align: center;">
+                  <span style="font-weight: bold; color: {{ 'var(--danger)' if remaining > 0 else 'var(--success)' }};">
+                    {{ remaining }}
+                  </span>
+                </td>
+                <td>
+                  {% if remaining > 0 %}
+                    <input type="number" name="receive_qty_{{ line.id }}" class="form-control" step="0.01" min="0" max="{{ remaining }}" value="{{ remaining }}">
+                  {% else %}
+                    <span class="badge badge-success" style="display:block; text-align:center;">Done</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="btn-group">
+        <a href="{{ url_for('purchase.view', order_id=order.id) }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Submit Receipt</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

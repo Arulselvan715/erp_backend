@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Bills of Materials — Mini ERP{% endblock %}
+{% block page_title %}Bills of Materials{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 style="margin: 0;">Configured BoMs</h3>
+  </div>
+
+  {% if boms %}
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>BoM Name</th>
+          <th>Finished Product</th>
+          <th style="text-align: center;">Components</th>
+          <th style="text-align: center;">Operations</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bom in boms %}
+        <tr>
+          <td><a href="{{ url_for('manufacturing.view_bom', bom_id=bom.id) }}" style="font-weight: 500;">{{ bom.name }}</a></td>
+          <td>{{ bom.product.name if bom.product else '—' }}</td>
+          <td style="text-align: center;">{{ bom.bom_lines|length }}</td>
+          <td style="text-align: center;">{{ bom.bom_operations|length }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📋</div>
+    <p>No Bills of Materials found.</p>
+    <a href="{{ url_for('products.list_products') }}" class="btn btn-primary mt-3">Go to Products to configure BoMs</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Stock Ledger — Mini ERP{% endblock %}
+{% block page_title %}Stock Ledger{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-header">
+    <form method="GET" action="{{ url_for('inventory.ledger') }}" style="display:flex; gap:1rem; flex-wrap: wrap; width: 100%;">
+      <div style="flex: 1; min-width: 200px;">
+        <select name="product_id" class="form-control">
+          <option value="">-- All Products --</option>
+          {% for p in products %}
+          <option value="{{ p.id }}" {% if selected_product_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex: 1; min-width: 200px;">
+        <select name="ref_type" class="form-control">
+          <option value="">-- All Reference Types --</option>
+          <option value="sales" {% if selected_ref_type == 'sales' %}selected{% endif %}>Sales Order (Delivery)</option>
+          <option value="purchase" {% if selected_ref_type == 'purchase' %}selected{% endif %}>Purchase Order (Receipt)</option>
+          <option value="manufacturing_consume" {% if selected_ref_type == 'manufacturing_consume' %}selected{% endif %}>Manufacturing (Consume)</option>
+          <option value="manufacturing_produce" {% if selected_ref_type == 'manufacturing_produce' %}selected{% endif %}>Manufacturing (Produce)</option>
+          <option value="ManualAdjustment" {% if selected_ref_type == 'ManualAdjustment' %}selected{% endif %}>Manual Adjustment</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary">🔍 Filter</button>
+    </form>
+  </div>
+
+  {% if entries %}
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Product</th>
+          <th style="text-align: right;">Change</th>
+          <th>Reference Type</th>
+          <th>Ref ID</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+        <tr>
+          <td class="text-muted" style="white-space: nowrap;">{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td><a href="{{ url_for('inventory.product_detail', product_id=entry.product.id) }}">{{ entry.product.name }}</a></td>
+          <td style="text-align: right; font-weight: bold; color: {{ 'var(--success)' if entry.qty_change > 0 else 'var(--danger)' }};">
+            {{ '+' if entry.qty_change > 0 else '' }}{{ entry.qty_change }}
+          </td>
+          <td>{{ entry.reference_type }}</td>
+          <td class="text-muted">{{ entry.reference_id or '—' }}</td>
+          <td>{{ entry.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
+  <div style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color);">
+    <div>Page {{ pagination.page }} of {{ pagination.pages }}</div>
+    <div class="btn-group">
+      {% if pagination.has_prev %}
+      <a href="{{ url_for('inventory.ledger', page=pagination.prev_num, product_id=selected_product_id, ref_type=selected_ref_type) }}" class="btn btn-sm btn-secondary">← Previous</a>
+      {% endif %}
+      {% if pagination.has_next %}
+      <a href="{{ url_for('inventory.ledger', page=pagination.next_num, product_id=selected_product_id, ref_type=selected_ref_type) }}" class="btn btn-sm btn-secondary">Next →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📊</div>
+    <p>No stock ledger entries found.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'Edit' if vendor else 'Add' }} Vendor — Mini ERP{% endblock %}
+{% block page_title %}{{ 'Edit Vendor' if vendor else 'Add New Vendor' }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+  <div class="card-header">
+    <h3>{{ 'Edit Vendor Details' if vendor else 'Vendor Information' }}</h3>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('vendors.edit', vendor_id=vendor.id) if vendor else url_for('vendors.create') }}">
+      <div class="form-group">
+        <label class="form-label" for="name">Company Name *</label>
+        <input type="text" id="name" name="name" class="form-control" value="{{ vendor.name if vendor else '' }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="email">Email Address</label>
+        <input type="email" id="email" name="email" class="form-control" value="{{ vendor.email if vendor else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="phone">Phone Number</label>
+        <input type="text" id="phone" name="phone" class="form-control" value="{{ vendor.phone if vendor else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="address">Full Address</label>
+        <textarea id="address" name="address" class="form-control" rows="4">{{ vendor.address if vendor else '' }}</textarea>
+      </div>
+
+      <div class="btn-group" style="margin-top: 2rem;">
+        <a href="{{ url_for('vendors.list_vendors') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Vendor</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

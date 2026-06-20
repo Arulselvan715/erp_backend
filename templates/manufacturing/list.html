@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Manufacturing Orders — Mini ERP{% endblock %}
+{% block page_title %}Manufacturing Orders{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div style="padding: 1rem; display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border-color); overflow-x: auto;">
+    <a href="{{ url_for('manufacturing.list_orders') }}" class="badge {{ 'badge-blue' if not status_filter else '' }}" style="text-decoration:none; padding: 0.5rem 1rem;">All</a>
+    <a href="{{ url_for('manufacturing.list_orders', status='draft') }}" class="badge badge-draft {{ 'badge-blue' if status_filter == 'draft' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Draft</a>
+    <a href="{{ url_for('manufacturing.list_orders', status='confirmed') }}" class="badge badge-confirmed {{ 'badge-blue' if status_filter == 'confirmed' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Confirmed</a>
+    <a href="{{ url_for('manufacturing.list_orders', status='in_progress') }}" class="badge badge-in-progress {{ 'badge-blue' if status_filter == 'in_progress' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">In Progress</a>
+    <a href="{{ url_for('manufacturing.list_orders', status='done') }}" class="badge badge-done {{ 'badge-blue' if status_filter == 'done' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Done</a>
+    <a href="{{ url_for('manufacturing.list_orders', status='cancelled') }}" class="badge badge-cancelled {{ 'badge-blue' if status_filter == 'cancelled' else '' }}" style="text-decoration:none; padding: 0.5rem 1rem; border: 1px solid var(--border-color); background: transparent;">Cancelled</a>
+  </div>
+
+  <div class="card-header" style="border-bottom: none;">
+    <h3 style="margin: 0;"></h3>
+    <div class="btn-group">
+      <a href="{{ url_for('manufacturing.list_boms') }}" class="btn btn-secondary">📋 View BoMs</a>
+      <a href="{{ url_for('manufacturing.create') }}" class="btn btn-primary">➕ Create MO</a>
+    </div>
+  </div>
+
+  {% if orders %}
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>MO #</th>
+          <th>Product</th>
+          <th>Quantity</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td><a href="{{ url_for('manufacturing.view', order_id=o.id) }}" style="font-weight: 500; font-family: monospace; font-size: 1.1em;">{{ o.order_number }}</a></td>
+          <td>{{ o.product.name if o.product else '—' }}</td>
+          <td>{{ o.quantity }}</td>
+          <td>
+            <span class="badge badge-{{ o.status|lower|replace(' ', '-') }}">{{ o.status }}</span>
+          </td>
+          <td class="text-muted">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🏭</div>
+    <p>No manufacturing orders found.</p>
+    <a href="{{ url_for('manufacturing.create') }}" class="btn btn-primary mt-3">Create your first MO</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

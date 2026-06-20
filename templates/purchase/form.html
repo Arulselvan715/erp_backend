@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Purchase Order — Mini ERP{% endblock %}
+{% block page_title %}Create Purchase Order{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 0 auto;">
+  <div class="card-header">
+    <h3>New PO Details</h3>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('purchase.create') }}">
+      
+      <div class="form-group" style="max-width: 400px;">
+        <label class="form-label" for="vendor_id">Vendor *</label>
+        <select id="vendor_id" name="vendor_id" class="form-control" required>
+          <option value="">-- Select Vendor --</option>
+          {% for v in vendors %}
+          <option value="{{ v.id }}">{{ v.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border-color);">
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+        <h4 style="margin:0;">Order Lines</h4>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="addLineRow()">➕ Add Line</button>
+      </div>
+      
+      <div class="table-wrapper" style="border:none;">
+        <table class="table" id="lines-table">
+          <thead>
+            <tr>
+              <th style="width: 50%;">Product *</th>
+              <th style="width: 20%;">Quantity *</th>
+              <th style="width: 20%;">Unit Price *</th>
+              <th style="width: 10%;"></th>
+            </tr>
+          </thead>
+          <tbody id="lines-body">
+            <tr>
+              <td>
+                <select name="product_id" class="form-control product-select" required onchange="updatePrice(this)">
+                  <option value="" data-price="0">-- Select Product --</option>
+                  {% for p in products %}
+                  <option value="{{ p.id }}" data-price="{{ p.cost_price|default(0) }}">{{ p.name }} (On Hand: {{ p.on_hand_qty }})</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" name="quantity" class="form-control" step="0.01" value="1" required onchange="calculateTotal()">
+              </td>
+              <td>
+                <input type="number" name="unit_price" class="form-control price-input" step="0.01" value="0.00" required onchange="calculateTotal()">
+              </td>
+              <td style="text-align: right;">
+                <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="removeRow(this)">✖</button>
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" style="text-align: right; font-weight: bold; font-size: 1.1em;">Order Total:</td>
+              <td colspan="2" style="font-weight: bold; font-size: 1.1em; color: var(--primary);">$<span id="order-total">0.00</span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="btn-group" style="margin-top: 2.5rem;">
+        <a href="{{ url_for('purchase.list_orders') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Create Draft PO</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function addLineRow() {
+  const tbody = document.getElementById('lines-body');
+  const template = tbody.querySelector('tr');
+  if (template) {
+    const clone = template.cloneNode(true);
+    clone.querySelector('select').value = '';
+    clone.querySelector('input[name="quantity"]').value = '1';
+    clone.querySelector('input[name="unit_price"]').value = '0.00';
+    tbody.appendChild(clone);
+  } else {
+    // Fallback template
+    const html = `
+      <tr>
+        <td>
+          <select name="product_id" class="form-control product-select" required onchange="updatePrice(this)">
+            <option value="" data-price="0">-- Select Product --</option>
+            {% for p in products %}
+            <option value="{{ p.id }}" data-price="{{ p.cost_price|default(0) }}">{{ p.name|replace("'", "\\'") }} (On Hand: {{ p.on_hand_qty }})</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <input type="number" name="quantity" class="form-control" step="0.01" value="1" required onchange="calculateTotal()">
+        </td>
+        <td>
+          <input type="number" name="unit_price" class="form-control price-input" step="0.01" value="0.00" required onchange="calculateTotal()">
+        </td>
+        <td style="text-align: right;">
+          <button type="button" class="btn btn-sm btn-danger btn-ghost" onclick="removeRow(this)">✖</button>
+        </td>
+      </tr>
+    `;
+    tbody.insertAdjacentHTML('beforeend', html);
+  }
+  calculateTotal();
+}
+
+function removeRow(btn) {
+  const tbody = document.getElementById('lines-body');
+  if (tbody.querySelectorAll('tr').length > 1) {
+    btn.closest('tr').remove();
+    calculateTotal();
+  } else {
+    alert("An order must have at least one line.");
+  }
+}
+
+function updatePrice(selectElem) {
+  const selectedOption = selectElem.options[selectElem.selectedIndex];
+  const price = selectedOption.getAttribute('data-price');
+  const row = selectElem.closest('tr');
+  const priceInput = row.querySelector('.price-input');
+  if (priceInput) {
+    priceInput.value = parseFloat(price).toFixed(2);
+  }
+  calculateTotal();
+}
+
+function calculateTotal() {
+  let total = 0;
+  const tbody = document.getElementById('lines-body');
+  const rows = tbody.querySelectorAll('tr');
+  rows.forEach(row => {
+    const qty = parseFloat(row.querySelector('input[name="quantity"]').value) || 0;
+    const price = parseFloat(row.querySelector('input[name="unit_price"]').value) || 0;
+    total += qty * price;
+  });
+  document.getElementById('order-total').innerText = total.toFixed(2);
+}
+</script>
+{% endblock %}

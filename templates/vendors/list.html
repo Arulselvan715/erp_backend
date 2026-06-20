@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Vendors — Mini ERP{% endblock %}
+{% block page_title %}Vendors{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <form method="GET" action="{{ url_for('vendors.list_vendors') }}" style="display:flex; gap:1rem;">
+      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search vendors...">
+      <button type="submit" class="btn btn-secondary">🔍 Search</button>
+    </form>
+    <a href="{{ url_for('vendors.create') }}" class="btn btn-primary">➕ Add Vendor</a>
+  </div>
+
+  {% if vendors %}
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th style="text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vendors %}
+        <tr>
+          <td><a href="{{ url_for('vendors.view', vendor_id=v.id) }}" style="font-weight: 500;">{{ v.name }}</a></td>
+          <td class="text-muted">{{ v.email or '—' }}</td>
+          <td class="text-muted">{{ v.phone or '—' }}</td>
+          <td style="text-align: right;">
+            <div class="btn-group">
+              <a href="{{ url_for('vendors.edit', vendor_id=v.id) }}" class="btn btn-sm btn-ghost">✏️ Edit</a>
+              <form method="POST" action="{{ url_for('vendors.delete', vendor_id=v.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this vendor?');">
+                <button type="submit" class="btn btn-sm btn-danger btn-ghost">🗑️ Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🤝</div>
+    <p>No vendors found.</p>
+    <a href="{{ url_for('vendors.create') }}" class="btn btn-primary mt-3">Add your first vendor</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

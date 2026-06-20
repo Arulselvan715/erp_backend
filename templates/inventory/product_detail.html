@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ product.name }} — Stock Card — Mini ERP{% endblock %}
+{% block page_title %}{{ product.name }} — Stock Card{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+  <div class="card mb-3">
+    <div class="card-header">
+      <div style="display:flex; align-items:center; gap: 1rem;">
+        <div class="stat-icon purple" style="width: 48px; height: 48px; font-size: 1.5rem;">📦</div>
+        <div>
+          <h2 style="margin:0;"><a href="{{ url_for('products.view', product_id=product.id) }}" style="text-decoration:none; color:inherit;">{{ product.name }}</a></h2>
+          <span class="text-muted">SKU: {{ product.sku }}</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="grid-2" style="padding: 1.5rem;">
+      <div>
+        <p style="margin: 0.5rem 0;"><strong>On Hand:</strong> <span style="font-size: 1.2em;">{{ product.on_hand_qty }}</span></p>
+        <p style="margin: 0.5rem 0;"><strong>Reserved:</strong> <span style="font-size: 1.2em; color: var(--warning);">{{ product.reserved_qty }}</span></p>
+      </div>
+      <div>
+        <p style="margin: 0.5rem 0;">
+          <strong>Free to Use:</strong> 
+          <span style="font-size: 1.5em; font-weight: bold; color: {{ 'var(--danger)' if product.free_to_use_qty < 5 else 'var(--success)' }};">
+            {{ product.free_to_use_qty }}
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3 style="margin:0;">Recent Movements</h3>
+    <a href="{{ url_for('inventory.ledger', product_id=product.id) }}" class="btn btn-ghost btn-sm">View Full Ledger →</a>
+  </div>
+  
+  {% if entries %}
+  <div class="table-wrapper" style="border:none;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th style="text-align: right;">Change</th>
+          <th>Reference Type</th>
+          <th>Ref ID</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+        <tr>
+          <td class="text-muted" style="white-space: nowrap;">{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td style="text-align: right; font-weight: bold; color: {{ 'var(--success)' if entry.qty_change > 0 else 'var(--danger)' }};">
+            {{ '+' if entry.qty_change > 0 else '' }}{{ entry.qty_change }}
+          </td>
+          <td>{{ entry.reference_type }}</td>
+          <td class="text-muted">{{ entry.reference_id or '—' }}</td>
+          <td>{{ entry.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding: 2rem;">
+    <p>No stock movements recorded for this product yet.</p>
+  </div>
+  {% endif %}
+</div>
+
+<div style="margin-top: 1rem;">
+  <a href="{{ url_for('inventory.stock_levels') }}" class="btn btn-secondary">← Back to Inventory</a>
+</div>
+{% endblock %}

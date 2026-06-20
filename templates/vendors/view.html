@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ vendor.name }} — Mini ERP{% endblock %}
+{% block page_title %}Vendor Profile{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+  <div class="card-header">
+    <div style="display:flex; align-items:center; gap: 1rem;">
+      <div class="stat-icon orange" style="width: 48px; height: 48px; font-size: 1.5rem;">🏢</div>
+      <div>
+        <h2 style="margin:0;">{{ vendor.name }}</h2>
+        <span class="text-muted">Vendor ID: {{ vendor.id }}</span>
+      </div>
+    </div>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <div class="grid-2">
+      <div>
+        <h4 class="text-muted">Contact Info</h4>
+        <p style="margin: 0.5rem 0;"><strong>Email:</strong> {{ vendor.email or 'Not provided' }}</p>
+        <p style="margin: 0.5rem 0;"><strong>Phone:</strong> {{ vendor.phone or 'Not provided' }}</p>
+      </div>
+      <div>
+        <h4 class="text-muted">Address</h4>
+        <p style="margin: 0.5rem 0; white-space: pre-wrap;">{{ vendor.address or 'Not provided' }}</p>
+      </div>
+    </div>
+    
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border-color);">
+    
+    <div class="btn-group">
+      <a href="{{ url_for('vendors.list_vendors') }}" class="btn btn-secondary">← Back to List</a>
+      <a href="{{ url_for('vendors.edit', vendor_id=vendor.id) }}" class="btn btn-primary">✏️ Edit Details</a>
+      <form method="POST" action="{{ url_for('vendors.delete', vendor_id=vendor.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this vendor?');">
+        <button type="submit" class="btn btn-danger">🗑️ Delete Vendor</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

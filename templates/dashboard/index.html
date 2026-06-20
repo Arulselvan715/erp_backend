@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard — Mini ERP{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- ===== STAT CARDS ===== -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-icon purple">🛒</div>
+    <div class="stat-value">{{ so_stats.values() | sum if so_stats else 0 }}</div>
+    <div class="stat-label">Total Sales Orders</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon blue">📦</div>
+    <div class="stat-value">{{ pending_deliveries|default(0) }}</div>
+    <div class="stat-label">Pending Deliveries</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon green">🏭</div>
+    <div class="stat-value">{{ mo_stats.get('confirmed', 0) + mo_stats.get('in_progress', 0) }}</div>
+    <div class="stat-label">Active Manufacturing Orders</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon orange">📋</div>
+    <div class="stat-value">{{ po_stats.get('draft', 0) + po_stats.get('confirmed', 0) + po_stats.get('partially_received', 0) }}</div>
+    <div class="stat-label">Open Purchase Orders</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon red">⚠️</div>
+    <div class="stat-value">{{ low_stock_products|length if low_stock_products else 0 }}</div>
+    <div class="stat-label">Low Stock Alerts</div>
+  </div>
+  
+  <div class="stat-card">
+    <div class="stat-icon">📦</div>
+    <div class="stat-value">{{ total_products|default(0) }}</div>
+    <div class="stat-label">Total Products</div>
+  </div>
+</div>
+
+<!-- ===== QUICK ACTIONS ===== -->
+<div class="card mb-3 mt-3">
+  <div class="card-header">
+    <h3>Quick Actions</h3>
+  </div>
+  <div class="btn-group" style="padding: 1rem;">
+    <a href="{{ url_for('sales.create') }}" class="btn btn-primary">🛒 New Sales Order</a>
+    <a href="{{ url_for('purchase.create') }}" class="btn btn-secondary">📋 New Purchase Order</a>
+    <a href="{{ url_for('manufacturing.create') }}" class="btn btn-secondary">🏭 New Manufacturing Order</a>
+    <a href="{{ url_for('products.list_products') }}" class="btn btn-secondary">📦 Manage Products</a>
+    {% if current_user.role in ['Admin', 'Business Owner'] %}
+    <a href="{{ url_for('dashboard.reports') }}" class="btn btn-secondary">📈 View Reports</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ===== RECENT ACTIVITY ===== -->
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header">
+      <h3>Recent Stock Movements</h3>
+      <a href="{{ url_for('inventory.ledger') }}" class="btn btn-ghost btn-sm">View All →</a>
+    </div>
+    {% if recent_ledger %}
+    <div class="table-wrapper" style="border:none">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Product</th>
+            <th>Change</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in recent_ledger %}
+          <tr>
+            <td class="text-muted">{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ entry.product.name }}</td>
+            <td style="color: {{ 'var(--success)' if entry.qty_change > 0 else 'var(--danger)' }}; font-weight: bold;">
+              {{ '+' if entry.qty_change > 0 else '' }}{{ entry.qty_change }}
+            </td>
+            <td>{{ entry.reference_type }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">📊</div>
+      <p>No recent stock movements</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ===== LOW STOCK ALERTS ===== -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Low Stock Alerts</h3>
+      <a href="{{ url_for('inventory.stock_levels') }}" class="btn btn-ghost btn-sm">View All →</a>
+    </div>
+    {% if low_stock_products %}
+    <div class="table-wrapper" style="border:none">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>SKU</th>
+            <th>On Hand</th>
+            <th>Free to Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product in low_stock_products[:5] %}
+          <tr>
+            <td>{{ product.name }}</td>
+            <td class="text-muted">{{ product.sku }}</td>
+            <td>{{ product.on_hand_qty }}</td>
+            <td>
+              <span style="color: var(--danger); font-weight: 600;">{{ product.free_to_use_qty }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">✅</div>
+      <p>All stock levels are healthy</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

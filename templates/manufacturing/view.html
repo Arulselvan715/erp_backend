@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}MO #{{ order.id }} — Mini ERP{% endblock %}
+{% block page_title %}Manufacturing Order #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 style="margin:0;">MO Details</h3>
+      <span class="badge badge-{{ order.status|lower|replace(' ', '-') }}" style="font-size: 1em;">{{ order.status }}</span>
+    </div>
+    <div style="padding: 1.5rem;">
+      <p style="margin: 0.5rem 0;"><strong>Product:</strong> {% if order.product %}<a href="{{ url_for('products.view', product_id=order.product.id) }}">{{ order.product.name }}</a>{% else %}—{% endif %}</p>
+      <p style="margin: 0.5rem 0;"><strong>BoM:</strong> {% if bom %}<a href="{{ url_for('manufacturing.view_bom', bom_id=bom.id) }}">{{ bom.name }}</a>{% else %}—{% endif %}</p>
+      <p style="margin: 0.5rem 0;"><strong>Quantity:</strong> <span style="font-size: 1.2em; font-weight: bold;">{{ order.quantity }}</span></p>
+      <p style="margin: 0.5rem 0;" class="text-muted"><strong>Created:</strong> {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+  </div>
+
+  <div class="card mb-3" style="background: var(--surface-color); display: flex; flex-direction: column; justify-content: center; padding: 2rem; align-items: center; border: 1px dashed var(--border-color);">
+    <h3 style="margin-bottom: 1.5rem;">MO Actions</h3>
+    <div class="btn-group" style="flex-wrap: wrap; justify-content: center;">
+      {% if order.status == 'draft' %}
+        <form method="POST" action="{{ url_for('manufacturing.confirm', order_id=order.id) }}" onsubmit="return confirm('Confirm Manufacturing Order? This will reserve all required components.');">
+          <button type="submit" class="btn btn-success" style="background: var(--success); color: white;">✔️ Confirm MO</button>
+        </form>
+        <form method="POST" action="{{ url_for('manufacturing.cancel', order_id=order.id) }}" onsubmit="return confirm('Cancel this draft MO?');">
+          <button type="submit" class="btn btn-danger">✖ Cancel</button>
+        </form>
+      {% elif order.status == 'confirmed' %}
+        <form method="POST" action="{{ url_for('manufacturing.start', order_id=order.id) }}" onsubmit="return confirm('Start production? This will set the first Work Order to In Progress.');">
+          <button type="submit" class="btn btn-primary">🚀 Start Production</button>
+        </form>
+        <form method="POST" action="{{ url_for('manufacturing.cancel', order_id=order.id) }}" onsubmit="return confirm('Cancel MO? This will release reserved components.');">
+          <button type="submit" class="btn btn-danger">✖ Cancel MO</button>
+        </form>
+      {% elif order.status == 'in_progress' %}
+        <form method="POST" action="{{ url_for('manufacturing.progress', order_id=order.id) }}">
+          <button type="submit" class="btn btn-primary" title="Completes current Work Order and starts the next one.">🔄 Progress Work Order</button>
+        </form>
+        <form method="POST" action="{{ url_for('manufacturing.complete', order_id=order.id) }}" onsubmit="return confirm('Complete MO? This will consume components and add finished goods to stock.');">
+          <button type="submit" class="btn btn-success" style="background: var(--success); color: white;">🏁 Complete MO</button>
+        </form>
+      {% elif order.status == 'done' %}
+        <div class="empty-state" style="padding: 1rem;">
+          <div class="empty-icon" style="font-size: 2rem;">✅</div>
+          <p style="margin: 0;">Manufacturing Complete</p>
+        </div>
+      {% elif order.status == 'cancelled' %}
+        <div class="empty-state" style="padding: 1rem;">
+          <div class="empty-icon" style="font-size: 2rem; color: var(--danger);">✖</div>
+          <p style="margin: 0;">MO Cancelled</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if bom %}
+<div class="card mb-3">
+  <div class="card-header">
+    <h3 style="margin:0;">Components Required</h3>
+  </div>
+  <div class="table-wrapper" style="border:none;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th style="text-align: right;">Qty per Unit</th>
+          <th style="text-align: right;">Total Needed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in bom.bom_lines %}
+        <tr>
+          <td><a href="{{ url_for('products.view', product_id=line.component.id) }}">{{ line.component.name }}</a></td>
+          <td style="text-align: right;">{{ line.quantity }}</td>
+          <td style="text-align: right; font-weight: bold; color: var(--primary);">{{ line.quantity * order.quantity }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header">
+    <h3 style="margin:0;">Work Orders</h3>
+  </div>
+  <div class="table-wrapper" style="border:none;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Seq</th>
+          <th>Operation</th>
+          <th>Duration</th>
+          <th>Status</th>
+          <th>Started</th>
+          <th>Completed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for wo in order.work_orders|sort(attribute='sequence') %}
+        <tr>
+          <td>{{ wo.sequence }}</td>
+          <td>{{ wo.operation_name }}</td>
+          <td>{{ wo.duration_mins }} mins</td>
+          <td><span class="badge badge-{{ wo.status|lower|replace(' ', '-') }}">{{ wo.status }}</span></td>
+          <td class="text-muted">{{ wo.started_at.strftime('%Y-%m-%d %H:%M') if wo.started_at else '—' }}</td>
+          <td class="text-muted">{{ wo.completed_at.strftime('%Y-%m-%d %H:%M') if wo.completed_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top: 1rem;">
+  <a href="{{ url_for('manufacturing.list_orders') }}" class="btn btn-secondary">← Back to MOs</a>
+</div>
+{% endblock %}

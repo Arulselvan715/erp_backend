@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}BoM — {{ bom.name }} — Mini ERP{% endblock %}
+{% block page_title %}Bill of Materials: {{ bom.name }}{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-header">
+    <div style="display:flex; align-items:center; gap: 1rem;">
+      <div class="stat-icon purple" style="width: 48px; height: 48px; font-size: 1.5rem;">📋</div>
+      <div>
+        <h2 style="margin:0;">{{ bom.name }}</h2>
+        <span class="text-muted">Associated Product: {% if bom.product %}<a href="{{ url_for('products.view', product_id=bom.product.id) }}">{{ bom.product.name }}</a>{% else %}—{% endif %}</span>
+      </div>
+    </div>
+    <div class="btn-group">
+      {% if bom.product %}
+      <a href="{{ url_for('products.configure_bom', product_id=bom.product.id) }}" class="btn btn-secondary">✏️ Edit BoM</a>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="grid-2" style="padding: 1.5rem; gap: 2rem;">
+    <div>
+      <h4 class="text-muted mb-3">Components (Raw Materials)</h4>
+      <div class="table-wrapper" style="border:none">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Component Product</th>
+              <th style="text-align: right;">Quantity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in bom.bom_lines %}
+            <tr>
+              <td><a href="{{ url_for('products.view', product_id=line.component.id) }}">{{ line.component.name }}</a></td>
+              <td style="text-align: right;">{{ line.quantity }}</td>
+            </tr>
+            {% endfor %}
+            {% if not bom.bom_lines %}
+            <tr><td colspan="2" class="text-muted" style="text-align:center;">No components configured.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div>
+      <h4 class="text-muted mb-3">Operations (Routing)</h4>
+      <div class="table-wrapper" style="border:none">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Seq</th>
+              <th>Operation Name</th>
+              <th style="text-align: right;">Duration (mins)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for op in bom.bom_operations|sort(attribute='sequence') %}
+            <tr>
+              <td>{{ op.sequence }}</td>
+              <td>{{ op.operation_name }}</td>
+              <td style="text-align: right;">{{ op.duration_mins }}</td>
+            </tr>
+            {% endfor %}
+            {% if not bom.bom_operations %}
+            <tr><td colspan="3" class="text-muted" style="text-align:center;">No operations configured.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 1rem;">
+  <a href="{{ url_for('manufacturing.list_boms') }}" class="btn btn-secondary">← Back to BoMs</a>
+</div>
+{% endblock %}

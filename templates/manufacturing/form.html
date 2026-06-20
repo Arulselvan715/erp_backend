@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Manufacturing Order — Mini ERP{% endblock %}
+{% block page_title %}Create Manufacturing Order{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+  <div class="card-header">
+    <h3>New MO Details</h3>
+  </div>
+  
+  <div style="padding: 1.5rem;">
+    <form method="POST" action="{{ url_for('manufacturing.create') }}">
+      
+      <div class="form-group">
+        <label class="form-label" for="product_id">Finished Product *</label>
+        <p class="text-muted" style="margin-top:0; margin-bottom: 0.5rem; font-size: 0.85em;">Only products with a configured Bill of Materials are listed.</p>
+        <select id="product_id" name="product_id" class="form-control" required>
+          <option value="">-- Select Product --</option>
+          {% for p in products %}
+          <option value="{{ p.id }}">{{ p.name }} (On Hand: {{ p.on_hand_qty }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group mt-3">
+        <label class="form-label" for="quantity">Quantity to Produce *</label>
+        <input type="number" id="quantity" name="quantity" class="form-control" step="0.01" value="1" required>
+      </div>
+
+      <div class="btn-group" style="margin-top: 2.5rem;">
+        <a href="{{ url_for('manufacturing.list_orders') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Create Draft MO</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
