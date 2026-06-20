@@ -40,6 +40,14 @@ class StockLedger(db.Model):
     product = db.relationship("Product", back_populates="stock_movements")
     user = db.relationship("User", back_populates="stock_movements")
 
+    @property
+    def product_name(self) -> str:
+        return self.product.name if self.product else ""
+
+    @property
+    def product_sku(self) -> str:
+        return self.product.sku if self.product else ""
+
     # Composite index for reference lookups
     __table_args__ = (
         db.Index("ix_stock_ledger_reference", "reference_type", "reference_id"),
