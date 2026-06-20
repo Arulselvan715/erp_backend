@@ -29,7 +29,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from flask_cors import CORS
     CORS(app, supports_credentials=True)
     
-    from routes.utils import patch_render_template
+    from patch import patch_render_template
     patch_render_template()
     
     db.init_app(app)
