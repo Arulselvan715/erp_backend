@@ -19,6 +19,27 @@ from routes.utils import role_required
 dashboard_bp = Blueprint("dashboard", __name__)
 
 
+@dashboard_bp.route("/debug/db")
+def debug_db():
+    import os
+    from flask import current_app, jsonify
+    uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    import urllib.parse
+    try:
+        parsed = urllib.parse.urlparse(uri)
+        if parsed.password:
+            netloc = f"{parsed.username}:*****@{parsed.hostname}"
+            if parsed.port:
+                netloc += f":{parsed.port}"
+            uri = parsed._replace(netloc=netloc).geturl()
+    except Exception as e:
+        uri = f"Error parsing URI: {e}"
+    return jsonify({
+        "database_uri": uri,
+        "env": os.environ.get("FLASK_ENV", "not set")
+    })
+
+
 @dashboard_bp.route("/")
 @dashboard_bp.route("/dashboard")
 @login_required
