@@ -78,8 +78,102 @@ def create_app(config_name: str | None = None) -> Flask:
 
         db.create_all()
         _seed_default_users(app)
+        _seed_default_data(app)
 
     return app
+
+
+def _seed_default_data(app: Flask) -> None:
+    """Insert default products, vendors, customers, and BoMs if tables are empty."""
+    from models.vendor import Vendor
+    from models.customer import Customer
+    from models.product import Product
+    from models.manufacturing import BillOfMaterials, BomLine
+
+    if Vendor.query.first() is not None:
+        return
+
+    app.logger.info("Seeding default database records...")
+
+    # 1. Seed Vendors
+    vendors_data = [
+        {"name": "Global Components Corp", "email": "info@globalcomp.com", "phone": "1-800-555-0199", "city": "San Jose", "state": "CA", "country": "USA"},
+        {"name": "Steel Supplies Inc", "email": "sales@steelsupplies.com", "phone": "1-800-555-0245", "city": "Pittsburgh", "state": "PA", "country": "USA"},
+        {"name": "Logistics & Copper Ltd", "email": "contact@logcopper.co.uk", "phone": "+44 20 7946 0958", "city": "London", "country": "UK"}
+    ]
+    
+    vendors_dict = {}
+    for v_info in vendors_data:
+        vendor = Vendor(**v_info)
+        db.session.add(vendor)
+        db.session.flush()
+        vendors_dict[v_info["name"]] = vendor
+
+    # 2. Seed Customers
+    customers_data = [
+        {"name": "Blue Horizon Industries", "email": "procurement@bluehorizon.com", "phone": "1-888-555-9000", "city": "Austin", "state": "TX", "country": "USA"},
+        {"name": "Tesla Motors Inc", "email": "parts@tesla.com", "phone": "1-800-555-8080", "city": "Palo Alto", "state": "CA", "country": "USA"},
+        {"name": "General Electric Corp", "email": "supply@ge.com", "phone": "1-800-555-7070", "city": "Boston", "state": "MA", "country": "USA"}
+    ]
+    
+    for c_info in customers_data:
+        customer = Customer(**c_info)
+        db.session.add(customer)
+            
+    # 3. Seed Products
+    global_comp = vendors_dict["Global Components Corp"]
+    steel_supp = vendors_dict["Steel Supplies Inc"]
+    log_copper = vendors_dict["Logistics & Copper Ltd"]
+    
+    products_data = [
+        # Raw materials (procurement_type="purchase")
+        {"name": "Steel Plate", "sku": "RAW-STEEL-01", "cost_price": 5.00, "sales_price": 0.00, "on_hand_qty": 100.0, "procure_on_demand": False, "procurement_type": "purchase", "vendor_id": steel_supp.id},
+        {"name": "Copper Wire", "sku": "RAW-COPPER-01", "cost_price": 2.00, "sales_price": 0.00, "on_hand_qty": 250.0, "procure_on_demand": False, "procurement_type": "purchase", "vendor_id": log_copper.id},
+        {"name": "Microcontroller Unit", "sku": "RAW-MCU-01", "cost_price": 15.00, "sales_price": 0.00, "on_hand_qty": 50.0, "procure_on_demand": False, "procurement_type": "purchase", "vendor_id": global_comp.id},
+        
+        # Finished goods (procurement_type="manufacturing")
+        {"name": "Smart Controller Box", "sku": "FG-SMART-BOX-01", "cost_price": 45.00, "sales_price": 120.00, "on_hand_qty": 5.0, "procure_on_demand": True, "procurement_type": "manufacturing"},
+        {"name": "Industrial Bracket", "sku": "FG-BRACKET-01", "cost_price": 10.00, "sales_price": 25.00, "on_hand_qty": 20.0, "procure_on_demand": False, "procurement_type": "manufacturing"}
+    ]
+    
+    products_dict = {}
+    for p_info in products_data:
+        product = Product(**p_info)
+        db.session.add(product)
+        db.session.flush()
+        products_dict[p_info["sku"]] = product
+        
+    db.session.commit()
+    
+    # 4. Seed Bill of Materials (BoM)
+    smart_box = products_dict["FG-SMART-BOX-01"]
+    mcu = products_dict["RAW-MCU-01"]
+    copper = products_dict["RAW-COPPER-01"]
+    steel = products_dict["RAW-STEEL-01"]
+    
+    bom_sb = BillOfMaterials(product_id=smart_box.id, name="Smart Controller Assembly", version="1.0", output_qty=1.0)
+    db.session.add(bom_sb)
+    db.session.flush()
+    
+    # Add components
+    line1 = BomLine(bom_id=bom_sb.id, component_id=mcu.id, quantity=1.0)
+    line2 = BomLine(bom_id=bom_sb.id, component_id=copper.id, quantity=2.0)
+    line3 = BomLine(bom_id=bom_sb.id, component_id=steel.id, quantity=1.0)
+    db.session.add_all([line1, line2, line3])
+        
+    # BoM for Industrial Bracket (FG-BRACKET-01)
+    bracket = products_dict["FG-BRACKET-01"]
+    
+    bom_ib = BillOfMaterials(product_id=bracket.id, name="Industrial Bracket Forming", version="1.0", output_qty=1.0)
+    db.session.add(bom_ib)
+    db.session.flush()
+    
+    # Add components
+    line_ib1 = BomLine(bom_id=bom_ib.id, component_id=steel.id, quantity=2.0)
+    db.session.add(line_ib1)
+        
+    db.session.commit()
+    app.logger.info("Database default data seeding completed successfully!")
 
 
 def _seed_default_users(app: Flask) -> None:
