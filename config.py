@@ -16,6 +16,9 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
+    # Cross-origin cookie settings (needed for Vercel frontend + Render backend)
+    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SECURE = True
 
 
 class DevelopmentConfig(Config):

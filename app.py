@@ -27,7 +27,14 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # ── Initialise extensions ─────────────────────────────────────────
     from flask_cors import CORS
-    CORS(app, supports_credentials=True)
+    import re
+    CORS(app, supports_credentials=True, origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        re.compile(r"https://.*\.vercel\.app"),
+    ], allow_headers=["Content-Type", "Authorization", "Accept"],
+       methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
     
     from patch import patch_render_template
     patch_render_template()
@@ -44,6 +51,15 @@ def create_app(config_name: str | None = None) -> Flask:
     @login_manager.user_loader
     def load_user(user_id: str):
         return User.query.get(user_id)
+
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        from flask import request, jsonify
+        accept_header = request.headers.get("Accept", "")
+        if (request.is_json or "application/json" in accept_header or
+                request.headers.get("Content-Type", "").startswith("application/json")):
+            return jsonify({"error": "Authentication required. Please log in."}), 401
+        return redirect(url_for("auth.login"))
 
     # ── Register blueprints ───────────────────────────────────────────
     from routes.auth import auth_bp
